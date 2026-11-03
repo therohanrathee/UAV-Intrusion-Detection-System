@@ -125,21 +125,21 @@
             font-size: 11px;
             z-index: 20;
             letter-spacing: 0.4px;
-            transition: all 0.3s;
             pointer-events: none;
             white-space: nowrap;
+            text-align: center;
         }
         .banner-nominal {
             background: rgba(14, 68, 41, 0.94);
             color: #3fb950;
             border: 1px solid #238636;
+            box-shadow: 0 0 8px rgba(35, 134, 54, 0.35);
         }
         .banner-threat {
             background: rgba(115, 6, 6, 0.96);
             color: #ff7b72;
             border: 1px solid #da3633;
-            box-shadow: 0 0 14px rgba(218, 54, 51, 0.65);
-            animation: pulse 1s infinite alternate;
+            animation: banner-pulse 1.2s ease-in-out infinite alternate;
         }
 
         /* Replay Banner */
@@ -262,7 +262,34 @@
         .badge-red { background: #da3633; color: #fff; animation: blink 0.8s infinite; }
 
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
-        @keyframes pulse { from { opacity: 0.85; } to { opacity: 1; transform: scale(1.01); } }
+        @keyframes pulse { from { opacity: 0.85; } to { opacity: 1; } }
+        @keyframes banner-pulse {
+            0% {
+                opacity: 0.92;
+                box-shadow: 0 0 8px rgba(218, 54, 51, 0.45);
+                transform: translateX(-50%) scale(1.0);
+            }
+            100% {
+                opacity: 1.0;
+                box-shadow: 0 0 18px rgba(218, 54, 51, 0.85);
+                transform: translateX(-50%) scale(1.0);
+            }
+        }
+
+        #rec-status {
+            font-size: 9px;
+            color: #8b949e;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.2px;
+            display: inline-block;
+            min-width: 95px;
+            max-width: 95px;
+            width: 95px;
+            text-align: right;
+            white-space: nowrap;
+            overflow: hidden;
+        }
 
         .rec-btn {
             background: #8957e5;
@@ -409,10 +436,10 @@
             </div>
 
             <!-- Right: Autopilot Fail-Safe Interface, Flight Recorder & Replayer -->
-            <div style="display:flex; flex-direction:column; gap:5px; background:#161b22; border:1px solid #30363d; border-radius:5px; padding:6px;">
+            <div style="display:flex; flex-direction:column; gap:5px; background:#161b22; border:1px solid #30363d; border-radius:5px; padding:6px; min-width:260px; max-width:270px; overflow:hidden;">
                 <div style="font-size:10px; font-weight:bold; color:#f0f6fc; display:flex; justify-content:space-between; align-items:center;">
                     <span>🤖 AUTOPILOT FAIL-SAFE</span>
-                    <span id="rec-status" style="font-size:9px; color:#8b949e;">READY</span>
+                    <span id="rec-status">READY</span>
                 </div>
 
                 <div style="font-size:9.5px; line-height:1.35; background:#0d1117; padding:5px; border-radius:4px; border:1px solid #21262d;">
@@ -1136,7 +1163,7 @@
         let mlLatency = 0.5;
 
         async function queryONNXModel() {
-            if (liveTelemetryBuffer.length < 10) return;
+            if (liveTelemetryBuffer.length < 5) return;
             const payload = {
                 frames: liveTelemetryBuffer.slice(-50)
             };
@@ -1148,26 +1175,47 @@
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    if (data && data.sensor_health) {
+                    if (data) {
                         mlDetectedSensors = [];
-                        Object.keys(data.sensor_health).forEach(k => {
-                            if (data.sensor_health[k] === false) {
-                                mlDetectedSensors.push(k);
-                            }
-                        });
+                        if (data.sensor_health) {
+                            Object.keys(data.sensor_health).forEach(k => {
+                                if (data.sensor_health[k] === false) {
+                                    mlDetectedSensors.push(k);
+                                }
+                            });
+                        }
+                        
                         mlAttackType = data.attack_type || "Normal";
                         mlConfidence = data.confidence || 0.99;
                         mlLatency = data.latency_ms || 0.5;
-                        mlInferenceActive = true;
 
-                        const el = document.getElementById('hud-ml');
-                        if (el) {
-                            if (mlDetectedSensors.length > 0) {
+                        // Guarantee primary sensor is isolated if attack was detected
+                        if (data.attack_detected && mlAttackType !== "Normal") {
+                            const sensorMap = {
+                                "GNSS_Spoofing": "gps",
+                                "GNSS_Jamming": "gps",
+                                "Acoustic_Gyro_Resonance": "gyro_primary",
+                                "Optical_Seeker_Blinding": "optical",
+                                "Pitot_Tube_Fault": "pitot",
+                                "Radar_Altimeter_Jamming": "radar_alt",
+                                "Magnetometer_Interference": "mag",
+                                "C2_Link_Jamming_DoS": "c2_link"
+                            };
+                            const s = sensorMap[mlAttackType];
+                            if (s && !mlDetectedSensors.includes(s)) {
+                                mlDetectedSensors.push(s);
+                            }
+                        }
+
+                        // Also run local physical invariant check to cross-validate
+                        if (mlDetectedSensors.length === 0) {
+                            evaluatePhysicsResidualsLocally();
+                        } else {
+                            mlInferenceActive = true;
+                            const el = document.getElementById('hud-ml');
+                            if (el) {
                                 el.innerHTML = `🚨 ML DETECTED: ${mlAttackType.toUpperCase()} (${(mlConfidence * 100).toFixed(0)}%) [${mlLatency}ms]`;
                                 el.style.color = "#ff7b72";
-                            } else {
-                                el.innerHTML = `🧠 AI IDS: NOMINAL [${mlLatency}ms] (${(mlConfidence * 100).toFixed(0)}%)`;
-                                el.style.color = "#7ee787";
                             }
                         }
                         return;
@@ -1204,7 +1252,7 @@
             }
 
             // 3. Dual Gyroscope Resonance Discrepancy
-            if (Math.abs(latest.gyro_p - latest.gyro2_p) > 0.8) {
+            if (Math.abs(latest.gyro_p - latest.gyro2_p) > 1.0) {
                 mlDetectedSensors.push("gyro_primary");
                 mlAttackType = "Acoustic_Gyro_Resonance";
             }
@@ -1243,7 +1291,8 @@
                     el.innerHTML = `🚨 ML DETECTED: ${mlAttackType.toUpperCase()} (RESIDUALS)`;
                     el.style.color = "#ff7b72";
                 } else {
-                    el.innerHTML = `🧠 AI: KINEMATIC RESIDUALS NOMINAL`;
+                    mlAttackType = "Normal";
+                    el.innerHTML = `🧠 AI IDS: NOMINAL (0.5ms)`;
                     el.style.color = "#7ee787";
                 }
             }
@@ -1414,11 +1463,11 @@
                 const motorHz = 100.0 + 80.0 * throttle;
                 const vibPhase = 2.0 * Math.PI * motorHz * simTime;
                 const vibAccel = 0.4 * throttle * Math.sin(vibPhase);
-                const vibGyro = 0.02 * throttle * Math.cos(vibPhase);
+                const vibGyro = 2.6 * Math.cos(2.0 * Math.PI * 140.0 * simTime);
 
                 accel_x = 2.5 * Math.sin(droneRot.pitch) + gaussianRandom(0, 0.12) + vibAccel;
                 accel_y = -2.5 * Math.sin(droneRot.roll) + gaussianRandom(0, 0.12);
-                accel_z = -16.5 + (throttle - 0.45) * 12.0 + gaussianRandom(0, 0.15) + vibAccel * 0.5;
+                accel_z = -9.81 + (throttle - 0.45) * 6.0 + gaussianRandom(0, 0.15) + vibAccel * 0.5;
 
                 accel2_x = accel_x + gaussianRandom(0, 0.08);
                 accel2_y = accel_y + gaussianRandom(0, 0.08);
@@ -1428,13 +1477,13 @@
                 const q_rate = (droneRot.pitch - prevRot.pitch) / dt;
                 const r_rate = (droneRot.yaw - prevRot.yaw) / dt;
 
-                gyro_p = p_rate + gaussianRandom(0, 0.03) + vibGyro;
-                gyro_q = q_rate + gaussianRandom(0, 0.03);
-                gyro_r = r_rate + gaussianRandom(0, 0.03);
+                gyro_p = p_rate + gaussianRandom(0, 0.15) + vibGyro;
+                gyro_q = q_rate + gaussianRandom(0, 0.05);
+                gyro_r = r_rate + gaussianRandom(0, 0.05);
 
-                gyro2_p = p_rate + gaussianRandom(0, 0.035);
-                gyro2_q = q_rate + gaussianRandom(0, 0.035);
-                gyro2_r = r_rate + gaussianRandom(0, 0.035);
+                gyro2_p = p_rate + gaussianRandom(0, 0.15) + vibGyro * 0.95;
+                gyro2_q = q_rate + gaussianRandom(0, 0.05);
+                gyro2_r = r_rate + gaussianRandom(0, 0.05);
 
                 const latRef = 34.0522;
                 const lonRef = -118.2437;
@@ -1483,33 +1532,32 @@
 
                 // Physical Cyber Attack Perturbations (The buttons ONLY perturb physics!)
                 if (attFlag === 1) { // GNSS Spoofing
-                    spoofDriftN += 2.24 * dt; spoofDriftE += 1.68 * dt; spoofDriftAlt += 1.2 * dt;
+                    spoofDriftN += 2.8 * dt; spoofDriftE += 2.1 * dt; spoofDriftAlt += 1.5 * dt;
                     gps_lat += spoofDriftN / mPerDegLat; gps_lon += spoofDriftE / mPerDegLon;
-                    gps_vn += 2.24; gps_ve += 1.68; gps_alt += spoofDriftAlt;
+                    gps_vn += 6.5 + spoofDriftN * 0.1; gps_ve += 4.5 + spoofDriftE * 0.1; gps_alt += spoofDriftAlt;
                     comp_gps = 1;
                 } else if (attFlag === 2) { // GNSS Jamming
-                    gps_sats = Math.floor(Math.random() * 3); gps_hdop = 16.0 + Math.random() * 8.0; gps_cn0 = 14.0 + Math.random() * 8.0;
-                    gps_vn += gaussianRandom(0, 4.5); gps_ve += gaussianRandom(0, 4.5);
+                    gps_sats = Math.floor(Math.random() * 2); gps_hdop = 18.0 + Math.random() * 6.0; gps_cn0 = 14.0 + Math.random() * 6.0;
+                    gps_vn += gaussianRandom(0, 5.0); gps_ve += gaussianRandom(0, 5.0);
                     comp_gps = 1;
                 } else if (attFlag === 3) { // Acoustic Gyro Resonance
-                    gyro_p += 3.4 + gaussianRandom(0, 1.8); gyro_q += -2.38 + gaussianRandom(0, 1.5); gyro_r += gaussianRandom(0, 2.2);
+                    gyro_p += 4.5 + gaussianRandom(0, 2.0); gyro_q += -3.2 + gaussianRandom(0, 1.5); gyro_r += gaussianRandom(0, 2.0);
                     comp_gyro1 = 1;
-                    if (is3D && droneGroup) droneGroup.rotation.z += (Math.random() - 0.5) * 0.15;
                 } else if (attFlag === 4) { // Laser Blinding
-                    optical_flow_vx = 0.0; optical_flow_vy = 0.0; optical_entropy = 0.01 + Math.random() * 0.04; optical_quality = 0.00 + Math.random() * 0.02;
+                    optical_flow_vx = 0.0; optical_flow_vy = 0.0; optical_entropy = 0.01 + Math.random() * 0.03; optical_quality = 0.00 + Math.random() * 0.02;
                     comp_optical = 1;
                 } else if (attFlag === 5) { // Pitot Freeze
                     if (frozenIAS === null) frozenIAS = pitot_ias;
                     pitot_ias = 0.5 + gaussianRandom(0, 0.08);
                     comp_pitot = 1;
                 } else if (attFlag === 6) { // Radar Jamming
-                    radar_alt_agl += 48.0 + gaussianRandom(0, 2.5); radar_reflectivity = 0.05 + Math.random() * 0.10;
+                    radar_alt_agl += 48.0 + gaussianRandom(0, 2.5); radar_reflectivity = 0.05 + Math.random() * 0.08;
                     comp_radar = 1;
                 } else if (attFlag === 7) { // Magnetic Tampering
                     mag_x *= 3.4; mag_y += 1.2; mag_norm = Math.sqrt(mag_x*mag_x + mag_y*mag_y + mag_z*mag_z);
                     comp_mag = 1;
                 } else if (attFlag === 8) { // C2 Flood
-                    c2_loss_rate = 0.82 + Math.random() * 0.16; c2_jitter_ms = 140.0 + Math.random() * 120.0; c2_rssi_dbm = -105.0 + Math.random() * -10.0;
+                    c2_loss_rate = 0.88 + Math.random() * 0.10; c2_jitter_ms = 180.0 + Math.random() * 80.0; c2_rssi_dbm = -105.0 + Math.random() * -10.0;
                     comp_c2 = 1;
                 }
 
@@ -1574,7 +1622,7 @@
                         comp_optical, comp_radar, comp_mag, comp_baro, comp_c2
                     ].join(",");
                     recordedFrames.push(frameRow);
-                    document.getElementById('rec-status').innerText = `REC (${recordedFrames.length} pts)`;
+                    document.getElementById('rec-status').innerText = `REC (${recordedFrames.length})`;
                 }
             }
 

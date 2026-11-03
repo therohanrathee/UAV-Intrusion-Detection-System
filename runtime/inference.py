@@ -91,6 +91,22 @@ class UAVInferenceEngine:
             is_compromised = bool(sensor_probs[i] > 0.5)
             sensor_health[s_name] = not is_compromised
 
+        # Ensure sensor health matches detected attack type
+        if pred_attack_idx != 0:
+            attack_primary_sensor = {
+                "GNSS_Spoofing": "gps",
+                "GNSS_Jamming": "gps",
+                "Acoustic_Gyro_Resonance": "gyro_primary",
+                "Optical_Seeker_Blinding": "optical",
+                "Pitot_Tube_Fault": "pitot",
+                "Radar_Altimeter_Jamming": "radar_alt",
+                "Magnetometer_Interference": "mag",
+                "C2_Link_Jamming_DoS": "c2_link",
+            }
+            primary = attack_primary_sensor.get(pred_attack_name)
+            if primary and primary in sensor_health:
+                sensor_health[primary] = False
+
         dt_ms = (time.perf_counter() - t0) * 1000.0
 
         return {

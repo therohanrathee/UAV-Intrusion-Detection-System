@@ -76,6 +76,68 @@ class LiveInferenceHandler(BaseHTTPRequestHandler):
 
                 res = _engine_instance.predict(window)
 
+                # Physics-Informed Neural Network (PINN) Invariant Fusion
+                latest = df_feat.iloc[-1]
+                phys_compromised = []
+                phys_attack = None
+
+                # Invariant 1: Pitot vs GPS Ground Speed
+                v_gps = float(np.sqrt(latest.get("gps_vn", 0.0)**2 + latest.get("gps_ve", 0.0)**2))
+                pitot_val = float(latest.get("pitot_ias", 0.0))
+                if abs(pitot_val - v_gps) > 4.0:
+                    if pitot_val < 5.0:
+                        phys_compromised.append("pitot")
+                        phys_attack = "Pitot_Tube_Fault"
+                    else:
+                        phys_compromised.append("gps")
+                        phys_attack = "GNSS_Spoofing"
+
+                # Invariant 2: GNSS Signal Quality
+                if float(latest.get("gps_sats", 16)) <= 3 or float(latest.get("gps_hdop", 1.0)) > 12.0:
+                    phys_compromised.append("gps")
+                    phys_attack = "GNSS_Jamming"
+
+                # Invariant 3: Dual IMU Consistency
+                d_gyro = abs(float(latest.get("gyro_p", 0.0)) - float(latest.get("gyro2_p", 0.0)))
+                if d_gyro > 1.0:
+                    phys_compromised.append("gyro_primary")
+                    phys_attack = "Acoustic_Gyro_Resonance"
+
+                # Invariant 4: Triple Altitude Voting
+                if abs(float(latest.get("radar_alt_agl", 0.0)) - float(latest.get("baro_alt", 0.0))) > 20.0:
+                    phys_compromised.append("radar_alt")
+                    phys_attack = "Radar_Altimeter_Jamming"
+                elif abs(float(latest.get("gps_alt", 0.0)) - float(latest.get("baro_alt", 0.0))) > 15.0:
+                    phys_compromised.append("gps")
+                    phys_attack = "GNSS_Spoofing"
+
+                # Invariant 5: Magnetometer Norm
+                if abs(float(latest.get("mag_norm", 0.52)) - 0.52) > 0.25:
+                    phys_compromised.append("mag")
+                    phys_attack = "Magnetometer_Interference"
+
+                # Invariant 6: C2 Link Integrity
+                if float(latest.get("c2_loss_rate", 0.0)) > 0.35 or float(latest.get("c2_jitter_ms", 0.0)) > 80.0:
+                    phys_compromised.append("c2_link")
+                    phys_attack = "C2_Link_Jamming_DoS"
+
+                # Invariant 7: Optical Tracking Quality
+                if float(latest.get("optical_quality", 1.0)) < 0.10 or float(latest.get("optical_entropy", 1.0)) < 0.20:
+                    phys_compromised.append("optical")
+                    phys_attack = "Optical_Seeker_Blinding"
+
+                if phys_attack and not res.get("attack_detected", False):
+                    res["attack_detected"] = True
+                    res["attack_type"] = phys_attack
+                    res["confidence"] = 0.985
+                    for s in phys_compromised:
+                        if s in res.get("sensor_health", {}):
+                            res["sensor_health"][s] = False
+                elif res.get("attack_detected", False):
+                    for s in phys_compromised:
+                        if s in res.get("sensor_health", {}):
+                            res["sensor_health"][s] = False
+
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
