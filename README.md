@@ -22,10 +22,10 @@ The system ingests high-rate (50–60 Hz), 56-channel avionics telemetry, comput
 - [Quick Start & Usage](#-quick-start--usage)
 - [Interactive Tactical Dashboard & 3D Flight Arena](#-interactive-tactical-dashboard--3d-flight-arena)
 - [Mathematical Formulation of Physics Residuals](#-mathematical-formulation-of-physics-residuals)
-- [Cyber-Physical Attack Profiles](#-cyber-physical-attack-profiles)
+- [Comprehensive Attack Vector Profiles & Detection Mechanics](#-comprehensive-attack-vector-profiles--detection-mechanics)
 - [Hardware & Drone Autopilot Deployment](#-hardware--drone-autopilot-deployment)
 - [Repository Structure](#-repository-structure)
-- [License & Citation](#-license--citation)
+- [License](#-license)
 
 ---
 
@@ -269,7 +269,7 @@ The dashboard is structured into two functional modules:
 Rather than feeding raw uncalibrated signals, the diagnostic pipeline extracts **32 invariant features** derived from aerospace kinematics:
 
 ### 1. Kinematic vs. Inertial Horizontal Acceleration
-$$\vec{a}_{\text{kinematic}} = \frac{d}{dt}\begin{bmatrix} v_{\text{north}}^{\text{GPS}} \\ v_{\text{east}}^{\text{GPS}} \end{bmatrix}, \quad r_{\text{accel\_horiz}} = \left| \|\vec{a}_{\text{kinematic}}\| - \sqrt{a_x^2 + a_y^2} \right|$$
+$$\vec{a}_{\text{kinematic}} = \frac{d}{dt}\begin{bmatrix} v_{\text{north}}^{\text{GPS}} \\ v_{\text{east}}^{\text{GPS}} \end{bmatrix}, \quad r_{\text{accel}} = \left| \|\vec{a}_{\text{kinematic}}\| - \sqrt{a_x^2 + a_y^2} \right|$$
 
 ### 2. Aerodynamic Airspeed vs. Ground Speed Invariant
 Under steady flight without extreme wind shear:
@@ -277,7 +277,7 @@ $$r_{\text{airspeed}} = \left| v_{\text{pitot}} - \sqrt{\left(v_{\text{north}}^{
 
 ### 3. Triple Altitude Consistency
 Cross-checks three independent physical principles (RF transit time, hydrostatic air pressure, and satellite pseudorange):
-$$r_{\text{alt\_gps\_baro}} = |h_{\text{GPS}} - h_{\text{baro}}|, \quad r_{\text{alt\_baro\_radar}} = |h_{\text{baro}} - h_{\text{radar}}|, \quad r_{\text{alt\_gps\_radar}} = |h_{\text{GPS}} - h_{\text{radar}}|$$
+$$r_{\text{alt}}^{\text{GPS-Baro}} = |h_{\text{GPS}} - h_{\text{baro}}|, \quad r_{\text{alt}}^{\text{Baro-Radar}} = |h_{\text{baro}} - h_{\text{radar}}|, \quad r_{\text{alt}}^{\text{GPS-Radar}} = |h_{\text{GPS}} - h_{\text{radar}}|$$
 
 ### 4. Dual-IMU Angular Rate Invariant
 Compares primary MEMS gyro $\vec{\omega}_1$ against a dissimilar, isolated secondary gyro $\vec{\omega}_2$:
@@ -289,19 +289,155 @@ $$r_{\text{mag}} = \left| \sqrt{B_x^2 + B_y^2 + B_z^2} - 0.52 \right|$$
 
 ---
 
-## ⚔️ Cyber-Physical Attack Profiles
+## ⚔️ Comprehensive Attack Vector Profiles & Detection Mechanics
 
-The framework models 9 operational combat conditions:
+The suite detects, isolates, and mitigates 9 distinct cyber-physical profiles. Below is the detailed breakdown of the physical avionics target, nominal vs. corrupted telemetry signatures, invariant violation physics, training simulation parameters, and automated autopilot fail-safe responses:
 
-1. **Normal (Nominal Flight)**: Multi-axis tactical combat maneuvering, turbulence gusts, and Gaussian sensor noise.
-2. **GNSS Spoofing**: Progressive velocity and position injection ($2.24\,\text{m/s}$ north, $1.68\,\text{m/s}$ east drift) inducing coordinate divergence without abrupt discontinuities.
-3. **GNSS RF Jamming**: High-power broadband noise causing satellite lock drops ($N_{\text{sats}} \le 2$), HDOP explosion ($> 16.0$), and carrier-to-noise ratio ($C/N_0$) collapse.
-4. **Acoustic Gyroscope Resonance**: Targeted ultrasound injection matching the mechanical resonant frequency ($9.25\,\text{kHz}$) of the primary MEMS gyroscope, inducing massive DC bias ($+3.4\,\text{rad/s}$) and vibration.
-5. **Optical Seeker Laser Blinding**: Laser dazzler saturation causing optical flow velocity drop, entropy collapse, and image quality zeroing.
-6. **Pitot-Static Tube Icing / Fault**: Freezing or total occlusion of the dynamic pressure inlet, collapsing indicated airspeed ($v_{\text{IAS}} \approx 0.5\,\text{m/s}$).
-7. **Radar Altimeter Jamming**: False-target RF echo generation inducing $+48.0\,\text{m}$ altitude offsets and reflectivity collapse.
-8. **Magnetometer Interference**: Electromagnetic tampering from onboard motors or high-voltage lines distorting geomagnetic norms.
-9. **C2 Link Flooding / DoS**: Command-and-control datalink saturation causing packet loss ($> 80\%$), latency jitter ($> 140\,\text{ms}$), and signal attenuation.
+---
+
+### 1. Nominal Tactical Combat Flight (`Normal`)
+* **Avionics Subsystems**: Full 10-sensor avionics suite operating under dynamic combat maneuvers and atmospheric disturbances.
+* **Operational Reality**: High-dynamic tactical maneuvering (loiter banking up to $25^\circ$, pitch undulations, throttle changes between $25\%\text{--}75\%$), atmospheric turbulence wind gusts ($1.5\text{--}6.5\text{ m/s}$), engine harmonic vibration ($80\text{--}240\text{ Hz}$), and stochastic sensor bias instability.
+* **Physical Dynamics & Invariants**:
+  * Accelerometer specific force matches GPS kinematic acceleration: $\left| \|\vec{a}_{\text{kinematic}}\| - \sqrt{a_x^2 + a_y^2} \right| \le 1.8\text{ m/s}^2$.
+  * Pitot indicated airspeed matches GPS groundspeed vector within wind boundaries: $|v_{\text{pitot}} - v_{\text{ground}}| \le 3.5\text{ m/s}$.
+  * Primary and secondary MEMS gyroscopes closely agree: $\|\vec{\omega}_1 - \vec{\omega}_2\| \le 0.4\text{ rad/s}$.
+  * Triple altitude readings agree across independent physical sensors: $|h_{\text{GPS}} - h_{\text{baro}}| \le 3.5\text{ m}$ and $|h_{\text{baro}} - h_{\text{radar}}| \le 2.0\text{ m}$.
+  * Geomagnetic field norm tracks Earth's local field: $\|\vec{B}\| \approx 0.52\text{ Gauss}$.
+  * Command datalink maintains low latency and minimal drop: `c2_loss_rate` $\le 2\%$, `c2_jitter_ms` $\le 5.0\text{ ms}$, `c2_rssi_dbm` $\approx -58\text{ dBm}$.
+* **Dataset Generation**: 103,998 nominal samples across 100 combat missions in `sim/generator.py` with randomized airframe mass ($3.5\text{--}4.9\text{ kg}$), motor thrust curves, and wind vectors.
+* **Autopilot Mode**: **GPS-Aided Extended Kalman Filter (EKF)** — all 10 avionics sensors fully trusted.
+
+---
+
+### 2. GNSS Coordinated Velocity & Position Spoofing (`GNSS_Spoofing`)
+* **Target Hardware**: Multi-constellation GNSS receiver (e.g., u-blox ZED-F9P, NEO-M8N).
+* **Threat Mechanism**: Attacker uses a synchronized Software-Defined Radio (SDR) to transmit counterfeit GPS satellite pseudoranges, capturing the receiver tracking loops and introducing gradual drift without sudden discontinuities.
+* **Telemetry Contrast Matrix**:
+  | Metric Channel | Nominal Flight | Under GNSS Spoofing |
+  | :--- | :---: | :---: |
+  | `gps_vn` (North Velocity) | Tracks flight path ($\approx 32.0\text{ m/s}$) | Injected drift $+2.24\text{ m/s}$ ($+6.5\text{ m/s}$ offset) |
+  | `gps_ve` (East Velocity) | Tracks flight path ($\approx 0.0\text{ m/s}$) | Injected drift $+1.68\text{ m/s}$ ($+4.5\text{ m/s}$ offset) |
+  | `gps_lat, lon` (Coordinates) | Truth position | Quadratic drift off waypoint path |
+  | `gps_sats`, `gps_hdop` | $16\text{ sats}$, $0.95$ HDOP | $16\text{ sats}$, $0.95$ HDOP *(attacker masks quality)* |
+  | `res_airspeed_vs_groundspeed` | $\le 2.5\text{ m/s}$ | **$> 5.5\text{ m/s}$** *(aerodynamic invariant breach)* |
+* **Physical Invariant Breached**: 
+  1. Aerodynamic invariant $|v_{\text{pitot}} - v_{\text{ground}}| > 4.0\text{ m/s}$ while throttle and pitch remain unchanged.
+  2. Kinematic derivative discrepancy: Numerical gradient $\frac{d\vec{v}_{\text{GPS}}}{dt}$ contradicts accelerometer specific force $\vec{f}_{\text{IMU}}$.
+* **How It Was Trained**: Simulated with smooth quadratic integral drift in `sim/attacks.py`. Multi-task network learns to correlate GPS velocity changes with Pitot airspeed and accelerometer force. Attribution accuracy: **98.97%**.
+* **Autopilot Fail-Safe**: **Dead Reckoning Mode (GPS Decoupled)** — autopilot sets `EKF2_GPS_CTRL=0`, isolating GPS and navigating via strapdown IMU, Pitot airspeed, and barometric altitude.
+
+---
+
+### 3. GNSS Broadband RF Jamming (`GNSS_Jamming`)
+* **Target Hardware**: GNSS L1/L2 patch antenna and RF front-end low-noise amplifier (LNA).
+* **Threat Mechanism**: Ground-based electronic warfare jammer blankets the $1575.42\text{ MHz}$ and $1227.60\text{ MHz}$ bands with high-power Gaussian white noise or swept continuous-wave jamming, raising the receiver noise floor.
+* **Telemetry Contrast Matrix**:
+  | Metric Channel | Nominal Flight | Under GNSS RF Jamming |
+  | :--- | :---: | :---: |
+  | `gps_sats` (Locked Satellites) | $16\text{ sats}$ | **$0 \text{ to } 2\text{ sats}$** *(carrier lock lost)* |
+  | `gps_hdop` (Dilution of Precision) | $0.95$ | **$16.0 \text{ to } 24.0$** *(extreme geometry collapse)* |
+  | `gps_cn0` (Carrier-to-Noise Ratio) | $44.5\text{ dB-Hz}$ | **$14.0 \text{ to } 22.0\text{ dB-Hz}$** |
+  | `gps_vn, ve` Velocity Variance | $\sigma \approx 0.04\text{ m/s}$ | **$\sigma \approx 4.5\text{ m/s}$** *(random walk noise)* |
+* **Physical Invariant Breached**: Direct carrier-to-noise and constellation geometric degradation without airframe occlusion.
+* **How It Was Trained**: Simulated in `sim/attacks.py` with randomized RF attenuation floors. The 1D-CNN temporal filters detect the sudden step drop in satellite count and HDOP surge. Attribution accuracy: **100.0%**.
+* **Autopilot Fail-Safe**: **INS Standalone Inertial Hold** — GPS rejected; navigation holds attitude and heading on dual gyros and optical flow.
+
+---
+
+### 4. Acoustic MEMS Gyroscope Ultrasonic Resonance (`Acoustic_Gyro_Resonance`)
+* **Target Hardware**: Primary MEMS silicon capacitive tuning-fork / vibrating ring gyroscope (e.g., Bosch BMI088 / InvenSense MPU-6000).
+* **Threat Mechanism**: Hostile directional acoustic transducer directs high-intensity ultrasound ($> 110\text{ dB SPL}$) tuned to the mechanical resonant frequency ($9.25\text{ kHz}$) of the primary gyroscope's micromachined silicon proof-mass.
+* **Telemetry Contrast Matrix**:
+  | Metric Channel | Nominal Flight | Under Acoustic Resonance |
+  | :--- | :---: | :---: |
+  | `gyro_p` (Primary Roll Rate) | $\approx 0.0\text{ rad/s}$ | **$+3.4 \text{ to } +4.5\text{ rad/s}$** ($+200^\circ/\text{s}$ false DC bias) |
+  | `gyro1_p_std_window` (Roll Variance) | $0.15\text{ rad/s}$ | **$> 3.5\text{ rad/s}$** *(high-frequency resonant chatter)* |
+  | `gyro2_p` (Secondary Isolated Gyro) | $\approx 0.0\text{ rad/s}$ | $\approx 0.0\text{ rad/s}$ *(acoustically isolated & nominal)* |
+  | `res_gyro_discrepancy` | $\le 0.3\text{ rad/s}$ | **$> 3.5\text{ rad/s}$** *(dual-IMU invariant breach)* |
+* **Physical Invariant Breached**: Dual-IMU redundancy invariant $\|\vec{\omega}_1 - \vec{\omega}_2\| > 1.0\text{ rad/s}$. The secondary dissimilar MEMS gyroscope (damped and physically isolated) contradicts the primary gyro.
+* **How It Was Trained**: Ultrasonic resonance injection with DC bias and high-frequency harmonics in `sim/attacks.py`. Multi-scale 1D-CNN extracts the resonant frequency variance while Bi-GRU confirms secondary IMU stability. Attribution accuracy: **99.98%**.
+* **Autopilot Fail-Safe**: **Dissimilar Sensor Transfer** — primary gyro isolated; EKF attitude estimation instantaneously transfers to secondary MEMS gyro.
+
+---
+
+### 5. Optical Seeker Laser Blinding / Dazzler (`Optical_Seeker_Blinding`)
+* **Target Hardware**: Forward-looking EO/IR visual camera pod and optical flow visual odometry sensor.
+* **Threat Mechanism**: Ground-based continuous-wave (CW) laser dazzler or dense pyrotechnic aerosol screen saturates the optical focal plane array.
+* **Telemetry Contrast Matrix**:
+  | Metric Channel | Nominal Flight | Under Laser Blinding |
+  | :--- | :---: | :---: |
+  | `optical_entropy` (Shannon Texture) | $0.88$ | **$0.01 \text{ to } 0.04$** *(complete texture collapse)* |
+  | `optical_quality` (Tracking Consensus) | $0.95$ | **$0.00 \text{ to } 0.02$** *(all keypoints lost)* |
+  | `optical_flow_vx, vy` (Flow Velocity) | $32.0\text{ m/s}$ | **$0.0\text{ m/s}$** *(image frozen/saturated)* |
+  | `res_optical_flow_mag` | $\approx 32.0\text{ m/s}$ | **$0.0\text{ m/s}$** |
+* **Physical Invariant Breached**: Visual odometry magnitude collapses to $0.0\text{ m/s}$ while Pitot airspeed ($32\text{ m/s}$) and accelerometer integration prove high cruise speed.
+* **How It Was Trained**: Modeled with focal plane array saturation in `sim/attacks.py`. Temporal self-attention focuses on keypoint consensus collapse. Attribution accuracy: **99.96%**.
+* **Autopilot Fail-Safe**: **Blind Homing Fallback** — terminal visual tracking decoupled; guidance falls back to GPS coordinates and inertial dead reckoning.
+
+---
+
+### 6. Pitot-Static Tube Freeze / Inlet Occlusion (`Pitot_Tube_Fault`)
+* **Target Hardware**: Dynamic pressure differential air data probe (e.g., Sensirion SDP3x).
+* **Threat Mechanism**: In-flight icing, freezing rain, or foreign particulate / insect blockage obstructing the forward total pressure inlet.
+* **Telemetry Contrast Matrix**:
+  | Metric Channel | Nominal Flight | Under Pitot Freeze / Occlusion |
+  | :--- | :---: | :---: |
+  | `pitot_ias` (Indicated Airspeed) | $32.0\text{ m/s}$ | **$0.5\text{ m/s}$** *(or frozen static reading)* |
+  | `v_ground` (GPS Ground Speed) | $32.0\text{ m/s}$ | $32.0\text{ m/s}$ *(nominal high-speed flight)* |
+  | `motor_rpm` (Rotor RPM) | $7,200\text{ RPM}$ | $7,200\text{ RPM}$ *(cruising throttle)* |
+  | `res_airspeed_vs_groundspeed` | $\le 2.5\text{ m/s}$ | **$> 25.0\text{ m/s}$** *(aerodynamic invariant breach)* |
+* **Physical Invariant Breached**: Aerodynamic invariant $|v_{\text{pitot}} - v_{\text{ground}}| > 4.0\text{ m/s}$ without stall-induced altitude loss or engine failure.
+* **How It Was Trained**: Inlet occlusion and zero-pressure collapse simulated in `sim/attacks.py`. Sequence model learns that high engine RPM and high GPS groundspeed contradict zero indicated airspeed. Attribution accuracy: **96.86%**.
+* **Autopilot Fail-Safe**: **Synthetic Airspeed Estimator** — Pitot probe decoupled; airspeed estimated from GPS groundspeed vector and EKF wind triangle model to prevent stall.
+
+---
+
+### 7. Radar Altimeter Deception Jamming (`Radar_Altimeter_Jamming`)
+* **Target Hardware**: $77\text{ GHz}$ FMCW / millimeter-wave downward radar altimeter.
+* **Threat Mechanism**: Electronic warfare digital radio frequency memory (DRFM) repeater captures the transmitted radar chirps and retransmits them with an artificial delay.
+* **Telemetry Contrast Matrix**:
+  | Metric Channel | Nominal Flight | Under Radar Jamming |
+  | :--- | :---: | :---: |
+  | `radar_alt_agl` (Radar Altitude) | $180.0\text{ m}$ | **$228.0\text{ m}$** ($+48.0\text{ m}$ false offset) |
+  | `radar_reflectivity` (Surface Metric) | $0.92$ | **$0.05 \text{ to } 0.10$** *(repeater phase noise)* |
+  | `baro_alt` (Barometric Altitude) | $180.0\text{ m}$ | $180.0\text{ m}$ *(nominal)* |
+  | `gps_alt` (GNSS Altitude) | $180.0\text{ m}$ | $180.0\text{ m}$ *(nominal)* |
+  | `res_alt_baro_radar` | $\le 2.0\text{ m}$ | **$> 45.0\text{ m}$** *(3-way voting discordance)* |
+* **Physical Invariant Breached**: Triple-redundancy altitude invariance $|h_{\text{radar}} - h_{\text{baro}}| > 20.0\text{ m}$ and $|h_{\text{radar}} - h_{\text{GPS}}| > 20.0\text{ m}$ while Baro and GPS altitude maintain close agreement ($|h_{\text{baro}} - h_{\text{GPS}}| \le 2.0\text{ m}$).
+* **How It Was Trained**: DRFM false returns simulated in `sim/attacks.py`. 3-way altitude cross-voting layer in `pipeline/residuals.py` instantly isolates the single outlier sensor. Attribution accuracy: **99.98%**.
+* **Autopilot Fail-Safe**: **Baro-Inertial Altitude Channel** — radar altimeter rejected; vertical guidance relies exclusively on fused barometric pressure and vertical accelerometer integration.
+
+---
+
+### 8. Geomagnetic Sensor Tampering (`Magnetometer_Interference`)
+* **Target Hardware**: 3-axis tri-axial magnetometer (e.g., Honeywell HMC5883L, Asahi Kasei AK09916).
+* **Threat Mechanism**: Electromagnetic tampering, nearby high-voltage transmission lines, or localized magnetic pulses distorting the ambient geomagnetic field vector.
+* **Telemetry Contrast Matrix**:
+  | Metric Channel | Nominal Flight | Under Magnetic Interference |
+  | :--- | :---: | :---: |
+  | `mag_x` (X-Axis Field) | $\approx 0.36\text{ Gauss}$ | **$\times 3.4$** ($\approx 1.25\text{ Gauss}$) |
+  | `mag_y` (Y-Axis Field) | $\approx 0.00\text{ Gauss}$ | **$+1.20\text{ Gauss}$** offset |
+  | `mag_norm` ($\|\vec{B}\|$) | $0.52\text{ Gauss}$ | **$1.85 \text{ to } 2.10\text{ Gauss}$** *(extreme invariant breach)* |
+  | `res_mag_norm` | $\le 0.05\text{ Gauss}$ | **$> 1.30\text{ Gauss}$** |
+* **Physical Invariant Breached**: Earth's geomagnetic field norm invariant $\|\vec{B}\| = \sqrt{B_x^2 + B_y^2 + B_z^2} \approx 0.52\text{ Gauss}$ (World Magnetic Model) is strictly invariant to airframe attitude. Deviation $|\|\vec{B}\| - 0.52| > 0.25\text{ Gauss}$ proves local magnetic tampering.
+* **How It Was Trained**: Dipole magnetic distortion injected in `sim/attacks.py`. Normalized `res_mag_norm` feature directly separates this class. Attribution accuracy: **99.98%**.
+* **Autopilot Fail-Safe**: **Gyro-Heading Integration** — magnetometer rejected; yaw angle driven by integrating rate gyro `gyro_r` corrected with GNSS course over ground.
+
+---
+
+### 9. C2 Telemetry Databand Buffer Flooding & DoS (`C2_Link_Jamming_DoS`)
+* **Target Hardware**: Ground control datalink transceiver (MAVLink / COFDM radio modem).
+* **Threat Mechanism**: Adversary launches high-rate UDP packet flooding on the datalink port or broadband RF jamming on the $915\text{ MHz} / 2.4\text{ GHz}$ ISM telemetry bands, overwhelming onboard serial transceiver buffers.
+* **Telemetry Contrast Matrix**:
+  | Metric Channel | Nominal Flight | Under C2 Flooding / DoS |
+  | :--- | :---: | :---: |
+  | `c2_loss_rate` (Packet Drop) | $\approx 0.015$ ($1.5\%$) | **$0.80 \text{ to } 0.98$** ($> 80\%$ loss) |
+  | `c2_jitter_ms` (Latency Jitter) | $3.5\text{ ms}$ | **$140 \text{ to } 260\text{ ms}$** *(buffer bloat delay)* |
+  | `c2_rssi_dbm` (Signal Strength) | $-58.0\text{ dBm}$ | **$-100.0 \text{ to } -110.0\text{ dBm}$** *(SNR collapse)* |
+* **Physical Invariant Breached**: Datalink packet arrival statistics violate standard Poisson arrival limits while onboard physical sensors remain nominal.
+* **How It Was Trained**: Simulated with stochastic network queue congestion and signal attenuation in `sim/attacks.py`. Bi-GRU captures sustained communications loss. Attribution accuracy: **100.0%**.
+* **Autopilot Fail-Safe**: **Autonomous RTL Fail-Safe** — datalink decoupled; drone executes pre-programmed autonomous Return-to-Launch along protected GPS/INS waypoints.
 
 ---
 
@@ -381,18 +517,6 @@ To deploy on physical drones running **PX4 Autopilot** or **ArduPilot** (Pixhawk
 
 ---
 
-## 📜 License & Citation
+## 📜 License
 
 This project is licensed under the **MIT License** — see the [LICENSE](file:///Users/rohan/Projects/UAV%20Intrusion%20Detection%20System/LICENSE) file for details.
-
-If you use this work, codebase, or dataset generation pipeline in academic research, please cite:
-
-```bibtex
-@article{uav_cyber_physical_ids_2026,
-  title={Physics-Informed Multi-Task Intrusion Detection and Sensor Compromise Attribution for Autonomous Loitering Munitions},
-  author={UAV Cyber-Physical Systems Research Group},
-  year={2026},
-  journal={IEEE Transactions on Aerospace and Electronic Systems},
-  note={Open-Source Avionics Telemetry Diagnostic Suite}
-}
-```
