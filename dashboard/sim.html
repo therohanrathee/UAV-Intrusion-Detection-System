@@ -774,6 +774,48 @@
                     posZ = t * 32.0;
                 }
 
+                const rawTelemetry = {
+                    mission_id: Math.round(getVal('mission_id', 888)),
+                    time: t,
+                    accel_x: getVal('accel_x', 0),
+                    accel_y: getVal('accel_y', 0),
+                    accel_z: getVal('accel_z', -9.81),
+                    gyro_p: getVal('gyro_p', 0),
+                    gyro_q: getVal('gyro_q', 0),
+                    gyro_r: getVal('gyro_r', 0),
+                    accel2_x: getVal('accel2_x', 0),
+                    accel2_y: getVal('accel2_y', 0),
+                    accel2_z: getVal('accel2_z', -9.81),
+                    gyro2_p: getVal('gyro2_p', 0),
+                    gyro2_q: getVal('gyro2_q', 0),
+                    gyro2_r: getVal('gyro2_r', 0),
+                    gps_lat: getVal('gps_lat', latRef),
+                    gps_lon: getVal('gps_lon', lonRef),
+                    gps_alt: getVal('gps_alt', alt),
+                    gps_vn: getVal('gps_vn', 0),
+                    gps_ve: getVal('gps_ve', 0),
+                    gps_vd: getVal('gps_vd', 0),
+                    gps_sats: Math.round(getVal('gps_sats', 16)),
+                    gps_hdop: getVal('gps_hdop', 0.95),
+                    gps_cn0: getVal('gps_cn0', 44),
+                    pitot_ias: getVal('pitot_ias', tas),
+                    static_pressure: getVal('static_pressure', 101325),
+                    baro_alt: getVal('baro_alt', alt),
+                    optical_flow_vx: getVal('optical_flow_vx', 0),
+                    optical_flow_vy: getVal('optical_flow_vy', 0),
+                    optical_entropy: getVal('optical_entropy', 0.9),
+                    optical_quality: getVal('optical_quality', 0.95),
+                    radar_alt_agl: getVal('radar_alt_agl', alt),
+                    radar_reflectivity: getVal('radar_reflectivity', 0.95),
+                    mag_x: getVal('mag_x', 0.28),
+                    mag_y: getVal('mag_y', 0.22),
+                    mag_z: getVal('mag_z', 0.38),
+                    mag_norm: getVal('mag_norm', 0.52),
+                    c2_jitter_ms: getVal('c2_jitter_ms', 3.5),
+                    c2_loss_rate: getVal('c2_loss_rate', 0.01),
+                    c2_rssi_dbm: getVal('c2_rssi_dbm', -58)
+                };
+
                 frames.push({
                     t: t,
                     x: posX,
@@ -803,6 +845,7 @@
                     comp_radar: Math.round(getVal('compromised_radar_alt', 0)),
                     comp_mag: Math.round(getVal('compromised_mag', 0)),
                     comp_c2: Math.round(getVal('compromised_c2_link', 0)),
+                    rawTelemetry: rawTelemetry
                 });
             }
 
@@ -1430,6 +1473,26 @@
                 if (frame.comp_radar) badSensors.push("radar_alt");
                 if (frame.comp_mag) badSensors.push("mag");
                 if (frame.comp_c2) badSensors.push("c2_link");
+
+                // Stream replayed telemetry to live ONNX engine (enables real-time detection on unlabeled data)
+                if (frame.rawTelemetry) {
+                    liveTelemetryBuffer.push(frame.rawTelemetry);
+                    if (liveTelemetryBuffer.length > 60) liveTelemetryBuffer.shift();
+
+                    const now = Date.now();
+                    if (now - lastMLCheck > 150) {
+                        lastMLCheck = now;
+                        queryONNXModel();
+                    }
+
+                    // If file has NO labels (e.g. raw unlabeled drone telemetry), use live ONNX predictions!
+                    if (mlDetectedSensors.length > 0 && mlAttackType !== "Normal") {
+                        activeAttackName = mlAttackType;
+                        for (const s of mlDetectedSensors) {
+                            if (!badSensors.includes(s)) badSensors.push(s);
+                        }
+                    }
+                }
 
                 // Update charts
                 chartData.c1_pitot.shift(); chartData.c1_pitot.push(pitot_ias);
