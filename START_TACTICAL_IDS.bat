@@ -116,19 +116,30 @@ echo.
 :: -----------------------------------------------------------------------------
 :: STEP 2: PIP AUTO-REPAIR & BOOTSTRAP
 :: -----------------------------------------------------------------------------
-echo [*] Step 2/4: Verifying base pip packaging subsystem...
+echo [*] Step 2/4: Verifying pip packaging subsystem...
 !PYTHON_EXE! -m pip --version >nul 2>nul
 if %errorlevel% neq 0 (
     echo [!] pip is missing or corrupted in the detected Python installation.
-    echo [*] Auto-bootstrapping pip using Python's built-in ensurepip module...
-    !PYTHON_EXE! -m ensurepip --default-pip
+    echo [*] Attempting offline bootstrap with Python ensurepip...
+    !PYTHON_EXE! -m ensurepip --default-pip >nul 2>nul
+    
+    !PYTHON_EXE! -m pip --version >nul 2>nul
     if !errorlevel! neq 0 (
-        echo [ERROR] Automatic pip bootstrap failed.
-        echo Please ensure Python was installed with standard libraries.
-        pause
-        exit /b 1
+        echo [*] Offline ensurepip restricted (likely non-admin C:\Program Files).
+        echo [*] Attempting online get-pip.py bootstrap...
+        curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py 2>nul
+        if exist get-pip.py (
+            !PYTHON_EXE! get-pip.py --user >nul 2>nul
+            del /f /q get-pip.py 2>nul
+        )
     )
-    echo [OK] pip successfully bootstrapped from offline core archive!
+    
+    !PYTHON_EXE! -m pip --version >nul 2>nul
+    if !errorlevel! equ 0 (
+        echo [OK] pip successfully bootstrapped!
+    ) else (
+        echo [!] Base pip restricted. Proceeding with local project virtual environment...
+    )
 ) else (
     echo [OK] pip packaging tool verified.
 )
@@ -137,35 +148,48 @@ echo.
 :: -----------------------------------------------------------------------------
 :: STEP 3: VIRTUAL ENVIRONMENT & DEPENDENCY MANAGEMENT
 :: -----------------------------------------------------------------------------
-echo [*] Step 3/4: Configuring isolated virtual environment (venv)...
+echo [*] Step 3/4: Configuring execution environment and dependencies...
+
+set "RUN_PYTHON="
+set "USE_VENV=1"
 
 if not exist "venv\Scripts\python.exe" (
     echo [*] Creating isolated environment in .\venv ...
-    !PYTHON_EXE! -m venv venv
+    !PYTHON_EXE! -m venv venv >nul 2>nul
     if !errorlevel! neq 0 (
-        echo [!] Standard venv creation failed. Retrying with --without-pip fallback...
-        !PYTHON_EXE! -m venv --without-pip venv
+        echo [!] Standard venv failed. Retrying with --without-pip fallback...
+        !PYTHON_EXE! -m venv --without-pip venv >nul 2>nul
         if not exist "venv\Scripts\python.exe" (
-            echo [ERROR] Unable to create Python virtual environment.
-            pause
-            exit /b 1
+            echo [!] Virtual environment creation unavailable on this system.
+            echo [*] Switching cleanly to User-Level Python fallback (no venv)...
+            set "USE_VENV=0"
+        ) else (
+            echo [*] Bootstrapping pip inside virtual environment...
+            venv\Scripts\python.exe -m ensurepip --default-pip >nul 2>nul
         )
-        echo [*] Bootstrapping pip inside virtual environment...
-        venv\Scripts\python.exe -m ensurepip --default-pip
     )
-    echo [OK] Virtual environment created successfully.
-) else (
-    echo [OK] Existing virtual environment detected.
 )
 
-if not exist "venv\Scripts\pip.exe" (
-    echo [*] Bootstrapping pip into venv...
-    venv\Scripts\python.exe -m ensurepip --default-pip
+if "!USE_VENV!"=="1" (
+    if not exist "venv\Scripts\pip.exe" (
+        echo [*] Bootstrapping pip into venv...
+        venv\Scripts\python.exe -m ensurepip --default-pip >nul 2>nul
+        if !errorlevel! neq 0 (
+            curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py 2>nul
+            if exist get-pip.py (
+                venv\Scripts\python.exe get-pip.py >nul 2>nul
+                del /f /q get-pip.py 2>nul
+            )
+        )
+    )
+    set "RUN_PYTHON=venv\Scripts\python.exe"
+) else (
+    set "RUN_PYTHON=!PYTHON_EXE!"
 )
 
 :: Verify if key dependencies are already installed
 set "DEPS_OK=1"
-venv\Scripts\python.exe -c "import streamlit, onnxruntime, pandas, sklearn, scipy, lightgbm, xgboost, matplotlib, joblib" >nul 2>nul
+!RUN_PYTHON! -c "import streamlit, onnxruntime, pandas, sklearn, scipy, lightgbm, xgboost, matplotlib, joblib" >nul 2>nul
 if %errorlevel% neq 0 (
     set "DEPS_OK=0"
 )
@@ -176,19 +200,30 @@ if "!DEPS_OK!"=="0" (
     echo [*] Using lightweight CPU-optimized acceleration index for rapid setup...
     echo     (First-time installation takes ~1-3 minutes; subsequent starts are instant)
     echo.
-    venv\Scripts\python.exe -m pip install --upgrade pip
-    venv\Scripts\python.exe -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-    if !errorlevel! neq 0 (
-        echo.
-        echo [!] Fast-index install encountered an error; falling back to standard PyPI...
-        venv\Scripts\python.exe -m pip install -r requirements.txt
+    
+    if "!USE_VENV!"=="1" (
+        !RUN_PYTHON! -m pip install --upgrade pip
+        !RUN_PYTHON! -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
         if !errorlevel! neq 0 (
             echo.
-            echo [ERROR] Failed to install required packages.
-            echo Please check your internet connection or network proxy.
-            pause
-            exit /b 1
+            echo [!] Fast-index encountered an issue; trying standard PyPI...
+            !RUN_PYTHON! -m pip install -r requirements.txt
         )
+    ) else (
+        !RUN_PYTHON! -m pip install --user --upgrade pip
+        !RUN_PYTHON! -m pip install --user -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+        if !errorlevel! neq 0 (
+            !RUN_PYTHON! -m pip install --user -r requirements.txt
+        )
+    )
+    
+    !RUN_PYTHON! -c "import streamlit, onnxruntime, pandas" >nul 2>nul
+    if !errorlevel! neq 0 (
+        echo.
+        echo [ERROR] Failed to install required packages.
+        echo Check internet connection or consult the manual installation section in README.md.
+        pause
+        exit /b 1
     )
     echo.
     echo [OK] All dependencies successfully installed and verified!
@@ -220,7 +255,7 @@ set PYTHONPATH=.
 start "" http://localhost:8501
 
 :: Start Streamlit server
-venv\Scripts\python.exe -m streamlit run dashboard\app.py --server.headless false
+!RUN_PYTHON! -m streamlit run dashboard\app.py --server.headless false
 
 if %errorlevel% neq 0 (
     echo.

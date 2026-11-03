@@ -71,32 +71,65 @@ echo.
 :: Step 2: Auto-bootstrap pip if missing
 !PYTHON_EXE! -m pip --version >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [INFO] Bootstrapping pip using Python ensurepip module...
-    !PYTHON_EXE! -m ensurepip --default-pip
-)
-
-:: Step 3: Create venv
-echo [1/3] Creating isolated virtual environment (venv)...
-if not exist "venv\Scripts\python.exe" (
-    !PYTHON_EXE! -m venv venv
+    echo [INFO] Attempting offline ensurepip bootstrap...
+    !PYTHON_EXE! -m ensurepip --default-pip >nul 2>nul
+    !PYTHON_EXE! -m pip --version >nul 2>nul
     if !errorlevel! neq 0 (
-        !PYTHON_EXE! -m venv --without-pip venv
-        venv\Scripts\python.exe -m ensurepip --default-pip
+        echo [INFO] Attempting online get-pip.py bootstrap...
+        curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py 2>nul
+        if exist get-pip.py (
+            !PYTHON_EXE! get-pip.py --user >nul 2>nul
+            del /f /q get-pip.py 2>nul
+        )
     )
 )
 
-if not exist "venv\Scripts\pip.exe" (
-    venv\Scripts\python.exe -m ensurepip --default-pip
+:: Step 3: Create venv or fallback to User-Level environment
+set "TARGET_PYTHON="
+set "USE_VENV=1"
+
+echo [1/3] Configuring Python execution environment...
+if not exist "venv\Scripts\python.exe" (
+    !PYTHON_EXE! -m venv venv >nul 2>nul
+    if !errorlevel! neq 0 (
+        !PYTHON_EXE! -m venv --without-pip venv >nul 2>nul
+        if not exist "venv\Scripts\python.exe" (
+            echo [!] Virtual environment unavailable. Using User-Level environment fallback...
+            set "USE_VENV=0"
+        ) else (
+            venv\Scripts\python.exe -m ensurepip --default-pip >nul 2>nul
+        )
+    )
+)
+
+if "!USE_VENV!"=="1" (
+    if not exist "venv\Scripts\pip.exe" (
+        venv\Scripts\python.exe -m ensurepip --default-pip >nul 2>nul
+    )
+    set "TARGET_PYTHON=venv\Scripts\python.exe"
+) else (
+    set "TARGET_PYTHON=!PYTHON_EXE!"
 )
 
 :: Step 4: Install dependencies
 echo [2/3] Upgrading pip...
-venv\Scripts\python.exe -m pip install --upgrade pip
+if "!USE_VENV!"=="1" (
+    !TARGET_PYTHON! -m pip install --upgrade pip
+) else (
+    !TARGET_PYTHON! -m pip install --user --upgrade pip
+)
 
 echo [3/3] Installing dependencies from requirements.txt...
-venv\Scripts\python.exe -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-if %errorlevel% neq 0 (
-    venv\Scripts\python.exe -m pip install -r requirements.txt
+if "!USE_VENV!"=="1" (
+    !TARGET_PYTHON! -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+    if !errorlevel! neq 0 (
+        !TARGET_PYTHON! -m pip install -r requirements.txt
+    )
+) else (
+    !TARGET_PYTHON! -m pip install --user -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+    if !errorlevel! neq 0 (
+        !TARGET_PYTHON! -m pip install --user -r requirements.txt
+    )
 )
 
 echo.

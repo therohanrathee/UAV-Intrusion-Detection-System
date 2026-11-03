@@ -178,36 +178,89 @@ For seamless execution on any Windows 10/11 machine without manual command-line 
 
 ---
 
-#### Using PowerShell:
-```powershell
-# 1. Clone repository
-git clone https://github.com/your-username/uav-intrusion-detection-system.git
-cd uav-intrusion-detection-system
+---
 
-# 2. Create and activate virtual environment
+#### 🛠️ Manual Installation (If Batch File or Venv is Not Usable)
+
+##### Option A: Standard Isolated Environment (Venv - Recommended)
+
+**Using Windows Command Prompt (cmd.exe):**
+```cmd
+# 1. Create and activate virtual environment
+python -m venv venv
+call venv\Scripts\activate.bat
+
+# 2. Upgrade pip and install dependencies (using lightweight CPU wheel index)
+python -m pip install --upgrade pip
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+# 3. Launch Tactical Suite
+set PYTHONPATH=.
+streamlit run dashboard/app.py
+```
+
+**Using PowerShell:**
+```powershell
+# 1. Create and activate virtual environment
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 
-# (If PowerShell blocks script execution, run: Set-ExecutionPolicy Unrestricted -Scope Process)
+# (If PowerShell blocks script execution, run: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass)
 
-# 3. Upgrade pip and install dependencies
+# 2. Upgrade pip and install dependencies
 python -m pip install --upgrade pip
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
-# 4. Verify installation
+# 3. Launch Tactical Suite
 $env:PYTHONPATH="."
-pytest tests/ -v
+streamlit run dashboard/app.py
 ```
 
-#### Using Windows Command Prompt (cmd.exe):
+##### Option B: Global Fallback Installation (No Venv)
+If `venv` creation fails or system policies prevent virtual environment creation, install directly to your user Python environment:
+
 ```cmd
-python -m venv venv
-call venv\Scripts\activate.bat
+# 1. Upgrade pip
 python -m pip install --upgrade pip
-pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+# 2. Install dependencies with --user flag (prevents permission errors in Program Files)
+pip install --user -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+# 3. Launch Tactical Suite
 set PYTHONPATH=.
-pytest tests\ -v
+streamlit run dashboard/app.py
 ```
+
+---
+
+#### 🔧 Windows Troubleshooting & Edge Case Fixes
+
+| Problem | Cause | Quick Fix Command (Run in CMD) |
+| :--- | :--- | :--- |
+| **`pip` is missing, broken, or not recognized** | Python was installed without pip, or `ensurepip` failed. | `curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python get-pip.py`<br>*(Or offline: `python -m ensurepip --default-pip`)* |
+| **`python` is not recognized as an internal command** | Python wasn't added to system PATH. | Use the Windows Python launcher `py` instead:<br>`py -3 -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu`<br>`py -3 -m streamlit run dashboard/app.py` |
+| **PowerShell script execution disabled** | Windows security policy blocks `.ps1` activation. | Run in PowerShell:<br>`Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`<br>*Or simply use Command Prompt (`cmd.exe`) where execution policy restrictions do not apply.* |
+| **`PermissionError: [WinError 5] Access is denied`** | Python is installed in `C:\Program Files` without Admin rights. | Add `--user` flag to pip:<br>`pip install --user -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu`<br>*Or right-click Command Prompt $\rightarrow$ "Run as Administrator".* |
+| **PyTorch installation taking too long or timing out** | Default pip resolves the 2.5 GB CUDA build. | Force the 150 MB lightweight CPU build:<br>`pip install torch --extra-index-url https://download.pytorch.org/whl/cpu` |
+| **Port 8501 or 8502 already in use** | A previous instance is still running in the background. | Terminate the occupying process:<br>`for /f "tokens=5" %a in ('netstat -aon ^| findstr :8501') do taskkill /f /pid %a 2>nul`<br>*Or specify a new port: `streamlit run dashboard/app.py --server.port 8510`* |
+
+---
+
+#### 🧹 Master Cleanup & Uninstall Commands
+
+If you ever need to completely remove the installed packages and reset your machine:
+
+- **If you used a Virtual Environment (`venv`)**:
+  ```cmd
+  rmdir /s /q venv 2>nul & del /f /q get-pip.py 2>nul & rmdir /s /q .pytest_cache 2>nul
+  ```
+  *(Deletes the `./venv` folder completely. Zero trace remains on your machine).*
+
+- **If you installed into Global Python (No Venv)**:
+  ```cmd
+  pip uninstall -y -r requirements.txt altair blinker pydeck rich watchdog sympy mpmath & del /f /q get-pip.py 2>nul
+  ```
+  *(Uninstalls all 17 packages plus Streamlit/Torch sub-dependencies in one shot).*
 
 ---
 
