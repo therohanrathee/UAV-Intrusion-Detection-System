@@ -1,0 +1,67 @@
+# UAV & Loitering Munition Sensor Suite Configuration
+# Modeled after tactical-grade and commercial-off-the-shelf (COTS) aerospace avionics (e.g., Bosch BMI088, InvenSense MPU-6000, u-blox F9P, Sensirion SDP3x)
+
+sampling:
+  base_rate_hz: 50.0            # 50 Hz EKF and state estimation rate (20ms step)
+  imu_oversample_hz: 200.0      # Internal oversampling rate for vibration & resonance capture
+
+imu:
+  primary:
+    accel:
+      noise_density: 0.02       # m/s^2 / sqrt(Hz)
+      bias_random_walk: 0.001   # m/s^3 / sqrt(Hz)
+      max_range: 156.96         # 16g in m/s^2
+    gyro:
+      noise_density: 0.005      # rad/s / sqrt(Hz)
+      bias_random_walk: 0.0002  # rad/s^2 / sqrt(Hz)
+      max_range: 34.9           # 2000 deg/s in rad/s
+      resonant_frequency_hz: 9250.0  # MEMS silicon structure resonant frequency
+      resonant_q_factor: 25.0
+  secondary:                    # Dissimilar secondary IMU (different physical location & damping)
+    accel:
+      noise_density: 0.035
+      bias_random_walk: 0.002
+    gyro:
+      noise_density: 0.008
+      bias_random_walk: 0.0004
+      resonant_frequency_hz: 18400.0
+
+vibration:
+  motor_base_rpm: 7200.0        # Cruise RPM
+  harmonic_orders: [1.0, 2.0, 4.0]
+  vibration_amplitude_g: 0.45   # Normal motor/prop vibration level
+
+gnss:
+  pos_std_horiz_m: 1.2
+  pos_std_vert_m: 2.1
+  vel_std_m_s: 0.04
+  nominal_sat_count: 16
+  nominal_hdop: 0.95
+  nominal_carrier_to_noise: 44.0  # dB-Hz
+
+pitot_static:
+  airspeed_noise_std_m_s: 0.25
+  static_pressure_noise_pa: 4.5
+  lag_time_constant_s: 0.04
+
+optical_seeker:
+  flow_noise_std_m_s: 0.04
+  nominal_entropy: 0.88          # Visual texture complexity (0 = black/solid, 1 = rich detail)
+  nominal_tracking_quality: 0.95 # Tracker confidence metric (0 = lost, 1 = solid lock)
+
+radar_altimeter:
+  range_noise_std_m: 0.035
+  max_range_m: 120.0
+  nominal_reflectivity: 0.92
+
+magnetometer:
+  local_field_strength_gauss: 0.52
+  noise_std_gauss: 0.008
+  declination_deg: 2.5
+  inclination_deg: 45.0
+
+c2_link:
+  nominal_packet_rate_hz: 20.0
+  nominal_jitter_ms: 3.5
+  nominal_loss_rate: 0.015
+  nominal_rssi_dbm: -58.0

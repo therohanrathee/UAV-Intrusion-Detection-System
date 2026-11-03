@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tactical UAV Cyber-Physical Intrusion Detection Arena</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            background: #0b0f17;
+            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow-x: hidden;
+            overflow-y: auto;
+            width: 100%;
+        }
+        #sim-container {
+            position: relative;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            background: #0b0f17;
+            padding: 2px 4px;
+        }
+        
+        /* 3D / 2D Tactical Viewport */
+        #viewport {
+            position: relative;
+            width: 100%;
+            height: 310px;
+            background: #060a12;
+            overflow: hidden;
+            cursor: crosshair;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+        }
+
+        /* Flight Controls Bar */
+        #flight-control-bar {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            margin-top: 5px;
+            padding: 5px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .ctrl-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 10.5px;
+            font-weight: 600;
+        }
+        .pad-btn {
+            background: #21262d;
+            color: #f0f6fc;
+            border: 1px solid #388bfd;
+            border-radius: 4px;
+            padding: 4px 9px;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            user-select: none;
+        }
+        .pad-btn:hover { background: #388bfd; color: #fff; }
+        .pad-btn:active { transform: scale(0.95); background: #1f6feb; }
+
+        /* HUD Overlay inside Viewport */
+        .hud {
+            position: absolute;
+            pointer-events: none;
+            z-index: 10;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        }
+        #hud-top-left {
+            top: 8px;
+            left: 12px;
+            font-size: 10.5px;
+            line-height: 1.45;
+            text-shadow: 0 0 5px #000;
+        }
+        #hud-top-right {
+            top: 8px;
+            right: 12px;
+            text-align: right;
+            font-size: 10.5px;
+            line-height: 1.45;
+            text-shadow: 0 0 5px #000;
+        }
+        #hud-focus-hint {
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(13, 17, 23, 0.92);
+            border: 1px solid #388bfd;
+            color: #58a6ff;
+            padding: 3px 12px;
+            border-radius: 14px;
+            font-size: 10px;
+            font-weight: 600;
+            pointer-events: auto;
+            cursor: pointer;
+            text-shadow: 0 0 4px #000;
+            transition: all 0.2s;
+        }
+        #hud-focus-hint:hover {
+            background: #1f6feb;
+            color: #fff;
+        }
+
+        /* Threat Banner */
+        #threat-banner {
+            position: absolute;
+            top: 36px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 16px;
+            border-radius: 5px;
+            font-weight: 700;
+            font-size: 11px;
+            z-index: 20;
+            letter-spacing: 0.4px;
+            transition: all 0.3s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+        .banner-nominal {
+            background: rgba(14, 68, 41, 0.94);
+            color: #3fb950;
+            border: 1px solid #238636;
+        }
+        .banner-threat {
+            background: rgba(115, 6, 6, 0.96);
+            color: #ff7b72;
+            border: 1px solid #da3633;
+            box-shadow: 0 0 14px rgba(218, 54, 51, 0.65);
+            animation: pulse 1s infinite alternate;
+        }
+
+        /* Replay Banner */
+        #replay-bar {
+            display: none;
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(13, 17, 23, 0.95);
+            border: 1px solid #238636;
+            border-radius: 6px;
+            padding: 4px 12px;
+            z-index: 30;
+            align-items: center;
+            gap: 8px;
+            font-size: 10.5px;
+            font-weight: bold;
+            box-shadow: 0 0 14px rgba(0,0,0,0.85);
+        }
+        .replay-ctrl-btn {
+            background: #21262d;
+            color: #f0f6fc;
+            border: 1px solid #30363d;
+            border-radius: 3px;
+            padding: 3px 7px;
+            font-size: 9.5px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .replay-ctrl-btn:hover { background: #388bfd; }
+
+        /* Telemetry & Attack Lower Panel */
+        #telemetry-panel {
+            width: 100%;
+            background: #0d1117;
+            display: grid;
+            grid-template-columns: 240px 1fr 270px;
+            gap: 6px;
+            margin-top: 5px;
+        }
+
+        /* Attack Buttons Grid */
+        .attack-btn {
+            background: #161b22;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-size: 9.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: left;
+            width: 100%;
+        }
+        .attack-btn:hover { background: #21262d; color: #58a6ff; border-color: #58a6ff; }
+        .attack-btn.countdown {
+            background: #d29922 !important;
+            color: #000 !important;
+            border-color: #e3b341 !important;
+            font-weight: 700;
+            animation: pulse 0.5s infinite alternate;
+        }
+        .attack-btn.active {
+            background: #da3633 !important;
+            color: #fff !important;
+            border-color: #f85149 !important;
+            font-weight: 700;
+            box-shadow: 0 0 10px rgba(248, 81, 73, 0.6);
+            animation: pulse 1s infinite alternate;
+        }
+        
+        #reset-attack-btn {
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px;
+            font-weight: 700;
+            font-size: 10px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 3px;
+            transition: background 0.2s;
+        }
+        #reset-attack-btn:hover { background: #2ea043; }
+
+        /* Stripchart Box */
+        .chart-box {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 5px;
+            padding: 4px 6px;
+            display: flex;
+            flex-direction: column;
+            height: 96px;
+            transition: border-color 0.3s;
+        }
+        .chart-box.corrupted {
+            border-color: #da3633;
+            box-shadow: 0 0 8px rgba(218, 54, 51, 0.4);
+        }
+        .chart-title {
+            font-size: 9.5px;
+            font-weight: 700;
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-badge {
+            font-size: 8px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        .badge-green { background: #238636; color: #fff; }
+        .badge-red { background: #da3633; color: #fff; animation: blink 0.8s infinite; }
+
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
+        @keyframes pulse { from { opacity: 0.85; } to { opacity: 1; transform: scale(1.01); } }
+
+        .rec-btn {
+            background: #8957e5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 8px;
+            font-size: 9.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .rec-btn.recording { background: #da3633; animation: blink 1.2s infinite; }
+        .rec-btn:hover { opacity: 0.9; }
+
+        @media (max-width: 900px) {
+            #telemetry-panel { grid-template-columns: 1fr; }
+        }
+    </style>
+    <!-- Three.js (CDN with graceful fallback) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+    if (typeof THREE === 'undefined') {
+        /* THREE_JS_INLINE */
+    }
+    </script>
+</head>
+<body>
+    <div id="sim-container">
+        <!-- 1. Tactical Flight Viewport (3D WebGL with 2D Vector Radar Fallback) -->
+        <div id="viewport" onclick="focusIframe()">
+            <div id="hud-focus-hint" onclick="focusIframe()">🖱️ CLICK TO FLY (W/S/A/D/Space)</div>
+            <div id="threat-banner" class="banner-nominal">🟢 SYSTEM NOMINAL — All Sensors Trusted</div>
+            
+            <div id="hud-top-left" class="hud">
+                <div>SPEED : <span id="hud-speed" style="color:#58a6ff;">32.0</span> m/s (<span id="hud-speed-kmh">115</span> km/h)</div>
+                <div>ALT   : <span id="hud-alt" style="color:#58a6ff;">180.0</span> m AGL</div>
+                <div>YAW   : <span id="hud-yaw">000</span>° | PITCH: <span id="hud-pitch">+2.1</span>° | ROLL: <span id="hud-roll">0.0</span>°</div>
+                <div>ROTOR : <span id="hud-rpm" style="color:#7ee787;">7,200</span> RPM (<span id="hud-throttle">45</span>% Throttle)</div>
+            </div>
+
+            <div id="hud-top-right" class="hud">
+                <div>GPS LOCK : <span id="hud-sats" style="color:#7ee787;">16 Sats (HDOP 0.92)</span></div>
+                <div>PITOT IAS : <span id="hud-ias">31.8</span> m/s</div>
+                <div>RADAR ALT : <span id="hud-radar">180.2</span> m</div>
+                <div>DATA LINK : <span id="hud-c2" style="color:#7ee787;">-58 dBm (Loss 0.8%)</span></div>
+                <div id="hud-ml" style="color:#e3b341; font-weight:bold; margin-top:2px;">🧠 AI IDS: ONNX (0.5ms) | LIVE</div>
+            </div>
+
+            <!-- Replay Control Overlay -->
+            <div id="replay-bar">
+                <span>📼 REPLAY: <span id="replay-fname" style="color:#7ee787;">flight.csv</span></span>
+                <span id="replay-time-label" style="color:#58a6ff; min-width:80px;">t = 0.0s</span>
+                <button class="replay-ctrl-btn" id="btn-replay-playpause" onclick="toggleReplayPause()">⏸ PAUSE</button>
+                <button class="replay-ctrl-btn" onclick="stepReplay(-50)">⏪ -1s</button>
+                <button class="replay-ctrl-btn" onclick="stepReplay(50)">+1s ⏩</button>
+                <button class="replay-ctrl-btn" style="background:#da3633; border-color:#f85149;" onclick="exitReplayMode()">⏹ EXIT REPLAY</button>
+            </div>
+        </div>
+
+        <!-- 2. Flight Control Bar (Works via Mouse, Touch & Keyboard) -->
+        <div id="flight-control-bar">
+            <!-- Throttle Slider & Live RPM -->
+            <div class="ctrl-group">
+                <span>⚡ THROTTLE:</span>
+                <input type="range" id="slider-throttle" min="15" max="100" value="45" style="width:95px; cursor:pointer;" oninput="onThrottleInput(this.value)">
+                <span id="label-throttle" style="color:#7ee787; font-family:monospace; min-width:32px;">45%</span>
+            </div>
+
+            <!-- Directional Flight Pad -->
+            <div class="ctrl-group">
+                <button class="pad-btn" onmousedown="startFlightAction('pitch_down')" onmouseup="stopFlightAction()" ontouchstart="startFlightAction('pitch_down')" ontouchend="stopFlightAction()">⬆️ FORWARD (W)</button>
+                <button class="pad-btn" onmousedown="startFlightAction('pitch_up')" onmouseup="stopFlightAction()" ontouchstart="startFlightAction('pitch_up')" ontouchend="stopFlightAction()">⬇️ CLIMB (S)</button>
+                <button class="pad-btn" onmousedown="startFlightAction('roll_left')" onmouseup="stopFlightAction()" ontouchstart="startFlightAction('roll_left')" ontouchend="stopFlightAction()">⬅️ ROLL L (A)</button>
+                <button class="pad-btn" onmousedown="startFlightAction('roll_right')" onmouseup="stopFlightAction()" ontouchstart="startFlightAction('roll_right')" ontouchend="stopFlightAction()">➡️ ROLL R (D)</button>
+                <button class="pad-btn" onmousedown="startFlightAction('yaw_left')" onmouseup="stopFlightAction()" ontouchstart="startFlightAction('yaw_left')" ontouchend="stopFlightAction()">↶ YAW L (Q)</button>
+                <button class="pad-btn" onmousedown="startFlightAction('yaw_right')" onmouseup="stopFlightAction()" ontouchstart="startFlightAction('yaw_right')" ontouchend="stopFlightAction()">↷ YAW R (E)</button>
+            </div>
+
+            <!-- Camera & View Switcher -->
+            <div class="ctrl-group">
+                <button class="pad-btn" onclick="cycleCamera()" style="border-color:#8957e5;">📷 CAM: <span id="label-cam">CHASE</span></button>
+            </div>
+        </div>
+
+        <!-- 3. Lower Telemetry Panel & Cyber Attack Grid -->
+        <div id="telemetry-panel">
+            <!-- Left: Attack Command Panel with 3s Animated Countdowns -->
+            <div style="display:flex; flex-direction:column; gap:4px; background:#161b22; border:1px solid #30363d; border-radius:5px; padding:6px;">
+                <div style="font-size:10px; font-weight:bold; color:#f0f6fc; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #30363d; padding-bottom:3px;">
+                    <span>⚔️ CYBER ATTACK INJECTOR</span>
+                    <span id="countdown-status" style="color:#d29922; font-size:9.5px; font-weight:bold;"></span>
+                </div>
+                
+                <button class="attack-btn" id="btn-att-1" data-id="1" data-name="GNSS Spoofing">📡 1. GNSS Spoofing (Drift)</button>
+                <button class="attack-btn" id="btn-att-2" data-id="2" data-name="GNSS Jamming">🚫 2. GNSS RF Jamming</button>
+                <button class="attack-btn" id="btn-att-3" data-id="3" data-name="Acoustic Gyro Resonance">🔊 3. Acoustic Gyro Resonance</button>
+                <button class="attack-btn" id="btn-att-4" data-id="4" data-name="Laser Seeker Blinding">⚡ 4. Laser Seeker Blinding</button>
+                <button class="attack-btn" id="btn-att-5" data-id="5" data-name="Pitot Tube Freeze">❄️ 5. Pitot Tube Freeze/Icing</button>
+                <button class="attack-btn" id="btn-att-6" data-id="6" data-name="Radar Altimeter Jamming">📻 6. Radar Altimeter Jamming</button>
+                <button class="attack-btn" id="btn-att-7" data-id="7" data-name="Magnetic Field Tampering">🧲 7. Magnetic Field Tampering</button>
+                <button class="attack-btn" id="btn-att-8" data-id="8" data-name="C2 Telemetry DoS">📶 8. C2 Databand Flood</button>
+                
+                <button id="reset-attack-btn">✓ RESTORE NOMINAL FLIGHT</button>
+            </div>
+
+            <!-- Center: 4 Live Stripcharts with Dynamic Green/Red Color Shifts -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap:5px;">
+                <!-- Chart 1: Airspeed vs GPS Ground Speed -->
+                <div class="chart-box" id="box-c1">
+                    <div class="chart-title">
+                        <span>Airspeed (Pitot) vs Groundspeed (GPS)</span>
+                        <span class="status-badge badge-green" id="badge-pitot">PITOT OK</span>
+                    </div>
+                    <canvas id="canvas-c1" width="280" height="74" style="width:100%; height:74px;"></canvas>
+                </div>
+
+                <!-- Chart 2: Primary vs Secondary Gyro Roll Rate -->
+                <div class="chart-box" id="box-c2">
+                    <div class="chart-title">
+                        <span>Dual Gyroscope Roll Rate (p)</span>
+                        <span class="status-badge badge-green" id="badge-gyro">GYRO OK</span>
+                    </div>
+                    <canvas id="canvas-c2" width="280" height="74" style="width:100%; height:74px;"></canvas>
+                </div>
+
+                <!-- Chart 3: Triple Altitude Redundancy -->
+                <div class="chart-box" id="box-c3">
+                    <div class="chart-title">
+                        <span>Triple Altitude (GPS / Baro / Radar)</span>
+                        <span class="status-badge badge-green" id="badge-alt">ALTITUDE OK</span>
+                    </div>
+                    <canvas id="canvas-c3" width="280" height="74" style="width:100%; height:74px;"></canvas>
+                </div>
+
+                <!-- Chart 4: Magnetic Field Norm -->
+                <div class="chart-box" id="box-c4">
+                    <div class="chart-title">
+                        <span>Magnetometer Field Norm ||B||</span>
+                        <span class="status-badge badge-green" id="badge-mag">MAG OK</span>
+                    </div>
+                    <canvas id="canvas-c4" width="280" height="74" style="width:100%; height:74px;"></canvas>
+                </div>
+            </div>
+
+            <!-- Right: Autopilot Fail-Safe Interface, Flight Recorder & Replayer -->
+            <div style="display:flex; flex-direction:column; gap:5px; background:#161b22; border:1px solid #30363d; border-radius:5px; padding:6px;">
+                <div style="font-size:10px; font-weight:bold; color:#f0f6fc; display:flex; justify-content:space-between; align-items:center;">
+                    <span>🤖 AUTOPILOT FAIL-SAFE</span>
+                    <span id="rec-status" style="font-size:9px; color:#8b949e;">READY</span>
+                </div>
+
+                <div style="font-size:9.5px; line-height:1.35; background:#0d1117; padding:5px; border-radius:4px; border:1px solid #21262d;">
+                    <b>Navigation Mode:</b><br>
+                    <span id="autopilot-mode" style="color:#3fb950; font-weight:bold;">GPS-Aided Extended Kalman Filter</span>
+                    <div id="autopilot-action" style="color:#8b949e; font-size:8.5px; margin-top:2px;">All sensors nominal. Tracking waypoint.</div>
+                </div>
+
+                <!-- Sensor Trust Grid (10 Sensors) -->
+                <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:2.5px; font-size:8px; text-align:center;">
+                    <div id="tag-gps" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">GPS</div>
+                    <div id="tag-gyro1" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">GYRO1</div>
+                    <div id="tag-gyro2" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">GYRO2</div>
+                    <div id="tag-accel" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">ACCEL</div>
+                    <div id="tag-pitot" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">PITOT</div>
+                    <div id="tag-opt" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">OPTICAL</div>
+                    <div id="tag-radar" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">RADAR</div>
+                    <div id="tag-mag" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">MAG</div>
+                    <div id="tag-baro" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">BARO</div>
+                    <div id="tag-c2" style="background:#238636; padding:2px 1px; border-radius:3px; color:white;">C2 LINK</div>
+                </div>
+
+                <!-- Flight Recorder & Replay Controls -->
+                <div style="margin-top:auto; display:flex; flex-direction:column; gap:3px;">
+                    <div style="display:flex; gap:3px;">
+                        <button class="rec-btn" id="btn-record" style="flex:1;">⏺ RECORD</button>
+                        <button class="rec-btn" id="btn-download" style="flex:1; background:#1f6feb;">💾 EXPORT CSV</button>
+                    </div>
+                    <button class="rec-btn" id="btn-upload-replay" style="background:#238636; width:100%;" onclick="triggerReplayUpload()">📂 UPLOAD & REPLAY 3D FLIGHT</button>
+                    <input type="file" id="input-replay-file" accept=".csv" style="display:none;" onchange="onReplayFileSelected(event)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================================================
+           1. CORE FLIGHT STATE & EXACT 56-CHANNEL SCHEMA
+           ========================================================================= */
+        const ATTACK_NAMES_LIST = [
+            "Normal",
+            "GNSS_Spoofing",
+            "GNSS_Jamming",
+            "Acoustic_Gyro_Resonance",
+            "Optical_Seeker_Blinding",
+            "Pitot_Tube_Fault",
+            "Radar_Altimeter_Jamming",
+            "Magnetometer_Interference",
+            "C2_Link_Jamming_DoS"
+        ];
+
+        const CSV_COLUMNS = [
+            "mission_id", "time", "attack_id", "attack_name",
+            "truth_alt", "truth_tas", "truth_roll", "truth_pitch", "truth_yaw",
+            "accel_x", "accel_y", "accel_z", "gyro_p", "gyro_q", "gyro_r",
+            "accel2_x", "accel2_y", "accel2_z", "gyro2_p", "gyro2_q", "gyro2_r",
+            "gps_lat", "gps_lon", "gps_alt", "gps_vn", "gps_ve", "gps_vd", "gps_sats", "gps_hdop", "gps_cn0",
+            "pitot_ias", "static_pressure", "baro_alt",
+            "optical_flow_vx", "optical_flow_vy", "optical_entropy", "optical_quality",
+            "radar_alt_agl", "radar_reflectivity",
+            "mag_x", "mag_y", "mag_z", "mag_norm",
+            "c2_jitter_ms", "c2_loss_rate", "c2_rssi_dbm",
+            "compromised_gps", "compromised_gyro_primary", "compromised_gyro_secondary", "compromised_accel",
+            "compromised_pitot", "compromised_optical", "compromised_radar_alt", "compromised_mag",
+            "compromised_baro", "compromised_c2_link"
+        ];
+
+        let throttle = 0.45;
+        let motorRPM = 7200;
+        let dronePos = { x: 0, y: 180, z: 0 };
+        let droneVel = { x: 0, y: 0, z: 32.0 };
+        let prevVel = { x: 0, y: 0, z: 32.0 };
+        let droneRot = { roll: 0, pitch: 0.03, yaw: 0 };
+        let prevRot = { roll: 0, pitch: 0.03, yaw: 0 };
+        let cameraMode = 0; // 0: Chase, 1: FPV, 2: Orbit
+
+        function gaussianRandom(mean = 0, stdev = 1) {
+            let u = 1 - Math.random();
+            let v = Math.random();
+            let z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            return mean + z * stdev;
+        }
+
+        /* =========================================================================
+           2. IMMEDIATE EVENT BINDING (GUARANTEES 100% INTERACTIVITY)
+           ========================================================================= */
+        const keys = {};
+        let activeMouseAction = null;
+
+        function focusIframe() {
+            window.focus();
+            const hint = document.getElementById('hud-focus-hint');
+            if (hint) {
+                hint.innerText = "✅ CONTROLS ACTIVE (W/S/A/D/Space)";
+                hint.style.color = "#7ee787";
+                hint.style.borderColor = "#238636";
+            }
+        }
+
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
+        });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        function startFlightAction(action) { activeMouseAction = action; focusIframe(); }
+        function stopFlightAction() { activeMouseAction = null; }
+
+        function onThrottleInput(val) {
+            throttle = parseFloat(val) / 100.0;
+            const el = document.getElementById('label-throttle');
+            if (el) el.innerText = `${Math.round(val)}%`;
+        }
+
+        function cycleCamera() {
+            cameraMode = (cameraMode + 1) % 3;
+            const names = ["CHASE", "COCKPIT FPV", "ORBIT"];
+            const el = document.getElementById('label-cam');
+            if (el) el.innerText = names[cameraMode];
+        }
+
+        /* 3-Second Attack Countdown Logic */
+        let currentAttackId = 0;
+        let currentAttackName = "Normal";
+        let attackActive = false;
+        let countdownTimer = null;
+        let countdownRemaining = 0.0;
+        let pendingAttackId = 0;
+        let pendingAttackName = "";
+
+        let spoofDriftN = 0.0;
+        let spoofDriftE = 0.0;
+        let spoofDriftAlt = 0.0;
+        let frozenIAS = null;
+
+        const attackButtons = document.querySelectorAll('.attack-btn');
+        attackButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (replayMode) {
+                    alert("Currently in Replay Mode. Exit replay first to manually inject attacks.");
+                    return;
+                }
+                const id = parseInt(btn.getAttribute('data-id'));
+                const name = btn.getAttribute('data-name');
+                startAttackCountdown(id, name);
+            });
+        });
+
+        const resetBtn = document.getElementById('reset-attack-btn');
+        if (resetBtn) resetBtn.addEventListener('click', clearAttack);
+
+        function startAttackCountdown(id, name) {
+            if (countdownTimer) clearInterval(countdownTimer);
+            pendingAttackId = id;
+            pendingAttackName = name;
+            countdownRemaining = 3.0;
+
+            attackButtons.forEach(b => b.classList.remove('countdown', 'active'));
+            const targetBtn = document.getElementById(`btn-att-${id}`);
+            if (targetBtn) targetBtn.classList.add('countdown');
+
+            const statusEl = document.getElementById('countdown-status');
+            if (statusEl) statusEl.innerText = `⏳ Countdown: 3.0s`;
+
+            countdownTimer = setInterval(() => {
+                countdownRemaining -= 0.1;
+                if (countdownRemaining <= 0.01) {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                    currentAttackId = pendingAttackId;
+                    currentAttackName = pendingAttackName;
+                    attackActive = true;
+                    if (statusEl) statusEl.innerText = `🚨 ATTACK ACTIVE!`;
+                    if (targetBtn) {
+                        targetBtn.classList.remove('countdown');
+                        targetBtn.classList.add('active');
+                        targetBtn.innerText = `🚨 ACTIVE: ${pendingAttackName}`;
+                    }
+                } else {
+                    if (statusEl) statusEl.innerText = `⏳ In ${countdownRemaining.toFixed(1)}s...`;
+                    if (targetBtn) targetBtn.innerText = `⚠️ In ${countdownRemaining.toFixed(1)}s (${pendingAttackName})`;
+                }
+            }, 100);
+        }
+
+        function clearAttack() {
+            if (countdownTimer) clearInterval(countdownTimer);
+            countdownTimer = null;
+            currentAttackId = 0;
+            currentAttackName = "Normal";
+            attackActive = false;
+            
+            const statusEl = document.getElementById('countdown-status');
+            if (statusEl) statusEl.innerText = "";
+            
+            spoofDriftN = 0.0;
+            spoofDriftE = 0.0;
+            spoofDriftAlt = 0.0;
+            frozenIAS = null;
+            mlDetectedSensors = [];
+            mlAttackType = "Normal";
+            liveTelemetryBuffer.length = 0;
+
+            const defaultTexts = [
+                "", "📡 1. GNSS Spoofing (Drift)", "🚫 2. GNSS RF Jamming",
+                "🔊 3. Acoustic Gyro Resonance", "⚡ 4. Laser Seeker Blinding",
+                "❄️ 5. Pitot Tube Freeze/Icing", "📻 6. Radar Altimeter Jamming",
+                "🧲 7. Magnetic Field Tampering", "📶 8. C2 Databand Flood"
+            ];
+            attackButtons.forEach(b => {
+                b.classList.remove('countdown', 'active');
+                const id = parseInt(b.getAttribute('data-id'));
+                b.innerText = defaultTexts[id];
+            });
+        }
+
+        /* Flight Recorder & Replayer Bindings */
+        let isRecording = false;
+        let recordedFrames = [];
+        let liveMissionId = 888;
+
+        const recBtn = document.getElementById('btn-record');
+        if (recBtn) recBtn.addEventListener('click', toggleRecording);
+        const dlBtn = document.getElementById('btn-download');
+        if (dlBtn) dlBtn.addEventListener('click', downloadCSV);
+
+        function toggleRecording() {
+            if (replayMode) {
+                alert("Cannot record while in Replay Mode. Exit replay first.");
+                return;
+            }
+            isRecording = !isRecording;
+            const btn = document.getElementById('btn-record');
+            const st = document.getElementById('rec-status');
+            if (isRecording) {
+                btn.classList.add('recording');
+                btn.innerText = "⏹ STOP";
+                st.innerText = "RECORDING...";
+                st.style.color = "#ff7b72";
+            } else {
+                btn.classList.remove('recording');
+                btn.innerText = "⏺ RECORD";
+                st.innerText = `${recordedFrames.length} PTS`;
+                st.style.color = "#7ee787";
+            }
+        }
+
+        function downloadCSV() {
+            if (recordedFrames.length === 0) {
+                alert("No flight data recorded yet! Click 'RECORD' first to capture flight telemetry.");
+                return;
+            }
+            const header = CSV_COLUMNS.join(",");
+            const csvContent = [header, ...recordedFrames].join("\n");
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `uav_mission_telemetry_live_${Date.now()}.csv`;
+            a.click();
+        }
+
+        let replayMode = false;
+        let replayFrames = [];
+        let replayIndex = 0;
+        let replayPaused = false;
+        let replayFileName = "";
+
+        function triggerReplayUpload() {
+            document.getElementById('input-replay-file').click();
+        }
+
+        function onReplayFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                parseAndStartReplay(e.target.result, file.name);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseAndStartReplay(csvText, fileName) {
+            const lines = csvText.trim().split(/\r?\n/);
+            if (lines.length < 2) {
+                alert("CSV file is empty or invalid.");
+                return;
+            }
+            const headers = lines[0].split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+            const colMap = {};
+            headers.forEach((h, i) => { colMap[h] = i; });
+
+            const frames = [];
+            const latRef = 34.0522;
+            const lonRef = -118.2437;
+            const mPerDegLat = 111132.95;
+            const mPerDegLon = 111132.95 * Math.cos(latRef * Math.PI / 180.0);
+
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const vals = line.split(',');
+                if (vals.length < headers.length - 2) continue;
+
+                const getVal = (name, def = 0) => {
+                    const idx = colMap[name];
+                    if (idx === undefined || idx >= vals.length) return def;
+                    const parsed = parseFloat(vals[idx]);
+                    return isNaN(parsed) ? def : parsed;
+                };
+                const getStr = (name, def = "") => {
+                    const idx = colMap[name];
+                    if (idx === undefined || idx >= vals.length) return def;
+                    return vals[idx].replace(/^"|"$/g, '').trim();
+                };
+
+                const t = getVal('time', i * 0.02);
+                const alt = getVal('truth_alt', getVal('baro_alt', 180.0));
+                const tas = getVal('truth_tas', getVal('pitot_ias', 32.0));
+                const rollDeg = getVal('truth_roll', 0.0);
+                const pitchDeg = getVal('truth_pitch', 2.0);
+                const yawDeg = getVal('truth_yaw', 0.0);
+
+                let posX = 0, posZ = 0;
+                if ('gps_lat' in colMap && 'gps_lon' in colMap) {
+                    const lat = getVal('gps_lat', latRef);
+                    const lon = getVal('gps_lon', lonRef);
+                    posZ = (lat - latRef) * mPerDegLat;
+                    posX = (lon - lonRef) * mPerDegLon;
+                } else {
+                    posZ = t * 32.0;
+                }
+
+                frames.push({
+                    t: t,
+                    x: posX,
+                    y: Math.max(alt, 35.0),
+                    z: posZ,
+                    tas: tas,
+                    rollRad: rollDeg * Math.PI / 180.0,
+                    pitchRad: pitchDeg * Math.PI / 180.0,
+                    yawRad: yawDeg * Math.PI / 180.0,
+                    rollDeg: rollDeg,
+                    pitchDeg: pitchDeg,
+                    yawDeg: yawDeg,
+                    pitot_ias: getVal('pitot_ias', tas),
+                    gps_speed: Math.sqrt(getVal('gps_vn')**2 + getVal('gps_ve')**2) || tas,
+                    gyro_p: getVal('gyro_p', 0.0),
+                    gyro2_p: getVal('gyro2_p', 0.0),
+                    gps_alt: getVal('gps_alt', alt),
+                    baro_alt: getVal('baro_alt', alt),
+                    radar_alt: getVal('radar_alt_agl', alt),
+                    mag_norm: getVal('mag_norm', 0.52),
+                    attack_id: Math.round(getVal('attack_id', 0)),
+                    attack_name: getStr('attack_name', 'Normal'),
+                    comp_gps: Math.round(getVal('compromised_gps', 0)),
+                    comp_gyro1: Math.round(getVal('compromised_gyro_primary', 0)),
+                    comp_pitot: Math.round(getVal('compromised_pitot', 0)),
+                    comp_optical: Math.round(getVal('compromised_optical', 0)),
+                    comp_radar: Math.round(getVal('compromised_radar_alt', 0)),
+                    comp_mag: Math.round(getVal('compromised_mag', 0)),
+                    comp_c2: Math.round(getVal('compromised_c2_link', 0)),
+                });
+            }
+
+            if (frames.length === 0) {
+                alert("Could not parse any valid telemetry frames from CSV.");
+                return;
+            }
+
+            replayFrames = frames;
+            replayIndex = 0;
+            replayMode = true;
+            replayPaused = false;
+            replayFileName = fileName;
+            
+            document.getElementById('replay-bar').style.display = 'flex';
+            document.getElementById('replay-fname').innerText = fileName;
+            document.getElementById('hud-focus-hint').innerText = "📼 REPLAYING RECORDED FLIGHT (Click controls below)";
+            document.getElementById('hud-focus-hint').style.color = "#7ee787";
+        }
+
+        function toggleReplayPause() {
+            replayPaused = !replayPaused;
+            document.getElementById('btn-replay-playpause').innerText = replayPaused ? "▶ PLAY" : "⏸ PAUSE";
+        }
+
+        function stepReplay(delta) {
+            replayIndex = Math.max(0, Math.min(replayFrames.length - 1, replayIndex + delta));
+        }
+
+        function exitReplayMode() {
+            replayMode = false;
+            replayFrames = [];
+            replayIndex = 0;
+            document.getElementById('replay-bar').style.display = 'none';
+            document.getElementById('hud-focus-hint').innerText = "🖱️ CLICK TO FLY (W/S/A/D/Space)";
+            document.getElementById('hud-focus-hint').style.color = "#58a6ff";
+            clearAttack();
+        }
+
+        /* =========================================================================
+           3. 2D STRIPCHARTS ENGINE
+           ========================================================================= */
+        const historyLen = 60;
+        const chartData = {
+            c1_pitot: new Array(historyLen).fill(32),
+            c1_ground: new Array(historyLen).fill(32),
+            c2_gyro1: new Array(historyLen).fill(0),
+            c2_gyro2: new Array(historyLen).fill(0),
+            c3_gps: new Array(historyLen).fill(180),
+            c3_baro: new Array(historyLen).fill(180),
+            c3_radar: new Array(historyLen).fill(180),
+            c4_mag: new Array(historyLen).fill(0.52),
+        };
+
+        function drawLineChart(canvasId, seriesList, minVal, maxVal, isCompromised) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            if (isCompromised) {
+                ctx.fillStyle = "rgba(180, 20, 20, 0.28)";
+                ctx.fillRect(0, 0, w, h);
+            }
+
+            ctx.strokeStyle = "#21262d";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, h * 0.5); ctx.lineTo(w, h * 0.5);
+            ctx.stroke();
+
+            seriesList.forEach(series => {
+                ctx.strokeStyle = series.color;
+                ctx.lineWidth = 2.0;
+                ctx.beginPath();
+                for (let i = 0; i < series.data.length; i++) {
+                    const x = (i / (historyLen - 1)) * w;
+                    const norm = Math.max(0, Math.min(1, (series.data[i] - minVal) / (maxVal - minVal || 1)));
+                    const y = h - (norm * h);
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            });
+        }
+
+        /* =========================================================================
+           4. DUAL GRAPHICS ENGINE: 3D THREE.JS + BULLETPROOF 2D TACTICAL RADAR
+           ========================================================================= */
+        const container = document.getElementById('viewport');
+        const initW = container.clientWidth || 900;
+        const initH = container.clientHeight || 310;
+
+        let is3D = false;
+        let renderer = null, scene = null, camera = null, droneGroup = null, rotors = [];
+        let canvas2D = null, ctx2D = null;
+        let flightTrail = [];
+
+        // Check if WebGL is genuinely supported
+        function testWebGL() {
+            try {
+                if (typeof THREE === 'undefined') return false;
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                return !!(window.WebGLRenderingContext && gl);
+            } catch (e) {
+                return false;
+            }
+        }
+
+        if (testWebGL()) {
+            try {
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x0a1424);
+                scene.fog = new THREE.FogExp2(0x0a1424, 0.0018);
+
+                camera = new THREE.PerspectiveCamera(60, initW / initH, 0.5, 4000);
+                camera.position.set(0, 186.5, -14);
+                camera.lookAt(0, 180, 0);
+
+                renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'default' });
+                renderer.setSize(initW, initH);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+                renderer.domElement.style.position = 'absolute';
+                renderer.domElement.style.top = '0';
+                renderer.domElement.style.left = '0';
+                renderer.domElement.style.width = '100%';
+                renderer.domElement.style.height = '100%';
+                renderer.domElement.style.zIndex = '1';
+                container.appendChild(renderer.domElement);
+
+                // Lighting
+                const ambLight = new THREE.AmbientLight(0xffffff, 0.9);
+                scene.add(ambLight);
+                const dirLight = new THREE.DirectionalLight(0xfff4e6, 1.2);
+                dirLight.position.set(200, 500, 300);
+                scene.add(dirLight);
+
+                // Procedural Topography
+                const terrainSize = 2600;
+                const terrainGeo = new THREE.PlaneGeometry(terrainSize, terrainSize, 60, 60);
+                terrainGeo.rotateX(-Math.PI / 2);
+                const posAttr = terrainGeo.attributes.position;
+                for (let i = 0; i < posAttr.count; i++) {
+                    const x = posAttr.getX(i);
+                    const z = posAttr.getZ(i);
+                    const y = Math.sin(x * 0.004) * Math.cos(z * 0.004) * 65.0 +
+                              Math.sin(x * 0.012 + 1.2) * Math.sin(z * 0.012) * 22.0;
+                    posAttr.setY(i, y);
+                }
+                terrainGeo.computeVertexNormals();
+
+                const terrainMat = new THREE.MeshStandardMaterial({
+                    color: 0x14281c, roughness: 0.85, metalness: 0.15
+                });
+                const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+                scene.add(terrain);
+
+                const gridHelper = new THREE.GridHelper(terrainSize, 40, 0x00ff88, 0x143820);
+                gridHelper.position.y = 1.5;
+                scene.add(gridHelper);
+
+                // 3D Tactical Drone Mesh
+                droneGroup = new THREE.Group();
+                scene.add(droneGroup);
+
+                const bodyMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.6, 0.35, 2.4),
+                    new THREE.MeshStandardMaterial({ color: 0x3d4450, roughness: 0.3, metalness: 0.7 })
+                );
+                droneGroup.add(bodyMesh);
+
+                const armsMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(4.2, 0.12, 0.35),
+                    new THREE.MeshStandardMaterial({ color: 0x1c2128, metalness: 0.8 })
+                );
+                droneGroup.add(armsMesh);
+
+                const camPod = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.28, 16, 16),
+                    new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.1 })
+                );
+                camPod.position.set(0, -0.15, 1.25);
+                droneGroup.add(camPod);
+
+                const rotorOffsets = [
+                    [-1.9, 0.15, -0.9],
+                    [ 1.9, 0.15, -0.9],
+                    [-1.9, 0.15,  0.9],
+                    [ 1.9, 0.15,  0.9]
+                ];
+                rotorOffsets.forEach(pos => {
+                    const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.22, 12), armsMesh.material);
+                    pod.position.set(...pos);
+                    droneGroup.add(pod);
+
+                    const blade = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.4, 0.02, 0.12),
+                        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
+                    );
+                    blade.position.set(pos[0], pos[1] + 0.14, pos[2]);
+                    droneGroup.add(blade);
+                    rotors.push(blade);
+                });
+
+                is3D = true;
+            } catch (err) {
+                console.warn("WebGL initialization failed, falling back to 2D Tactical Radar:", err);
+                is3D = false;
+            }
+        }
+
+        // 2D Tactical Radar Fallback Setup
+        if (!is3D) {
+            canvas2D = document.createElement('canvas');
+            canvas2D.width = initW;
+            canvas2D.height = initH;
+            canvas2D.style.position = 'absolute';
+            canvas2D.style.top = '0';
+            canvas2D.style.left = '0';
+            canvas2D.style.width = '100%';
+            canvas2D.style.height = '100%';
+            canvas2D.style.zIndex = '1';
+            container.appendChild(canvas2D);
+            ctx2D = canvas2D.getContext('2d');
+        }
+
+        /* 2D Tactical Radar Renderer */
+        function render2DTacticalRadar(w, h, dronePos, droneRot, trueSpeed, badSensors) {
+            if (!ctx2D) return;
+            ctx2D.clearRect(0, 0, w, h);
+
+            // Background Tactical Grid
+            ctx2D.fillStyle = "#060f1e";
+            ctx2D.fillRect(0, 0, w, h);
+
+            const cx = w * 0.48;
+            const cy = h * 0.52;
+
+            // Concentric Range Rings
+            ctx2D.strokeStyle = "#1b334d";
+            ctx2D.lineWidth = 1;
+            [40, 80, 120, 160].forEach((r, idx) => {
+                ctx2D.beginPath();
+                ctx2D.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx2D.stroke();
+                ctx2D.fillStyle = "#388bfd";
+                ctx2D.font = "8.5px monospace";
+                ctx2D.fillText(`${(idx + 1) * 50}m`, cx + r + 2, cy - 2);
+            });
+
+            // Crosshairs
+            ctx2D.beginPath();
+            ctx2D.moveTo(cx - 170, cy); ctx2D.lineTo(cx + 170, cy);
+            ctx2D.moveTo(cx, cy - 130); ctx2D.lineTo(cx, cy + 130);
+            ctx2D.stroke();
+
+            // Flight Breadcrumb Trail
+            flightTrail.push({ x: dronePos.x, z: dronePos.z });
+            if (flightTrail.length > 50) flightTrail.shift();
+
+            ctx2D.strokeStyle = badSensors.length > 0 ? "rgba(248, 81, 73, 0.4)" : "rgba(88, 166, 255, 0.4)";
+            ctx2D.lineWidth = 2;
+            ctx2D.beginPath();
+            const trailScale = 0.5;
+            for (let i = 0; i < flightTrail.length; i++) {
+                const ptX = cx + (flightTrail[i].x - dronePos.x) * trailScale;
+                const ptY = cy - (flightTrail[i].z - dronePos.z) * trailScale;
+                if (i === 0) ctx2D.moveTo(ptX, ptY); else ctx2D.lineTo(ptX, ptY);
+            }
+            ctx2D.stroke();
+
+            // Tactical Drone Icon (Rotated to Heading)
+            ctx2D.save();
+            ctx2D.translate(cx, cy);
+            ctx2D.rotate(-droneRot.yaw);
+
+            const droneColor = badSensors.length > 0 ? "#ff5555" : "#00ff88";
+            ctx2D.fillStyle = droneColor;
+            ctx2D.strokeStyle = droneColor;
+            ctx2D.lineWidth = 2;
+
+            // Drone body
+            ctx2D.beginPath();
+            ctx2D.moveTo(0, -18);
+            ctx2D.lineTo(12, 14);
+            ctx2D.lineTo(0, 8);
+            ctx2D.lineTo(-12, 14);
+            ctx2D.closePath();
+            ctx2D.fill();
+
+            // Rotor arms
+            ctx2D.beginPath();
+            ctx2D.moveTo(-16, -10); ctx2D.lineTo(16, -10);
+            ctx2D.moveTo(-16, 10); ctx2D.lineTo(16, 10);
+            ctx2D.stroke();
+
+            // Rotor circles
+            ctx2D.lineWidth = 1.5;
+            [[-16, -10], [16, -10], [-16, 10], [16, 10]].forEach(([rx, ry]) => {
+                ctx2D.beginPath();
+                ctx2D.arc(rx, ry, 6, 0, Math.PI * 2);
+                ctx2D.stroke();
+            });
+
+            ctx2D.restore();
+
+            // Artificial Horizon Mini-HUD (Top-Right of radar area)
+            const ahX = w - 85;
+            const ahY = 70;
+            const ahR = 35;
+
+            ctx2D.save();
+            ctx2D.beginPath();
+            ctx2D.arc(ahX, ahY, ahR, 0, Math.PI * 2);
+            ctx2D.clip();
+
+            ctx2D.fillStyle = "#1e3a5f"; // Sky
+            ctx2D.fillRect(ahX - ahR, ahY - ahR, ahR * 2, ahR * 2);
+
+            ctx2D.save();
+            ctx2D.translate(ahX, ahY);
+            ctx2D.rotate(-droneRot.roll);
+            const pitchShift = droneRot.pitch * 60;
+
+            ctx2D.fillStyle = "#3d2a14"; // Ground
+            ctx2D.fillRect(-ahR, pitchShift, ahR * 2, ahR * 2);
+
+            // Horizon line
+            ctx2D.strokeStyle = "#ffffff";
+            ctx2D.lineWidth = 1.5;
+            ctx2D.beginPath();
+            ctx2D.moveTo(-ahR, pitchShift); ctx2D.lineTo(ahR, pitchShift);
+            ctx2D.stroke();
+            ctx2D.restore();
+
+            ctx2D.strokeStyle = "#58a6ff";
+            ctx2D.lineWidth = 2;
+            ctx2D.beginPath();
+            ctx2D.arc(ahX, ahY, ahR, 0, Math.PI * 2);
+            ctx2D.stroke();
+            ctx2D.restore();
+
+            ctx2D.fillStyle = "#c9d1d9";
+            ctx2D.font = "9px monospace";
+            ctx2D.fillText("ATTITUDE HUD", ahX - 32, ahY + ahR + 12);
+        }
+
+        /* =========================================================================
+           5. REAL ONNX MACHINE LEARNING CLIENT
+           ========================================================================= */
+        const liveTelemetryBuffer = [];
+        let mlInferenceActive = false;
+        let lastMLCheck = 0;
+        let mlDetectedSensors = [];
+        let mlAttackType = "Normal";
+        let mlConfidence = 1.0;
+        let mlLatency = 0.5;
+
+        async function queryONNXModel() {
+            if (liveTelemetryBuffer.length < 10) return;
+            const payload = {
+                frames: liveTelemetryBuffer.slice(-50)
+            };
+            try {
+                const res = await fetch('http://127.0.0.1:8502/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.sensor_health) {
+                        mlDetectedSensors = [];
+                        Object.keys(data.sensor_health).forEach(k => {
+                            if (data.sensor_health[k] === false) {
+                                mlDetectedSensors.push(k);
+                            }
+                        });
+                        mlAttackType = data.attack_type || "Normal";
+                        mlConfidence = data.confidence || 0.99;
+                        mlLatency = data.latency_ms || 0.5;
+                        mlInferenceActive = true;
+
+                        const el = document.getElementById('hud-ml');
+                        if (el) {
+                            if (mlDetectedSensors.length > 0) {
+                                el.innerHTML = `🚨 ML DETECTED: ${mlAttackType.toUpperCase()} (${(mlConfidence * 100).toFixed(0)}%) [${mlLatency}ms]`;
+                                el.style.color = "#ff7b72";
+                            } else {
+                                el.innerHTML = `🧠 AI IDS: NOMINAL [${mlLatency}ms] (${(mlConfidence * 100).toFixed(0)}%)`;
+                                el.style.color = "#7ee787";
+                            }
+                        }
+                        return;
+                    }
+                }
+                evaluatePhysicsResidualsLocally();
+            } catch (e) {
+                // Fallback to client-side kinematic residual evaluator
+                evaluatePhysicsResidualsLocally();
+            }
+        }
+
+        function evaluatePhysicsResidualsLocally() {
+            if (liveTelemetryBuffer.length < 5) return;
+            const latest = liveTelemetryBuffer[liveTelemetryBuffer.length - 1];
+            mlDetectedSensors = [];
+
+            // 1. Pitot vs GPS Ground Speed discrepancy
+            const gpsSpeed = Math.sqrt(latest.gps_vn**2 + latest.gps_ve**2);
+            if (Math.abs(latest.pitot_ias - gpsSpeed) > 4.0) {
+                if (latest.pitot_ias < 5.0) {
+                    mlDetectedSensors.push("pitot");
+                    mlAttackType = "Pitot_Tube_Fault";
+                } else {
+                    mlDetectedSensors.push("gps");
+                    mlAttackType = "GNSS_Spoofing";
+                }
+            }
+
+            // 2. GNSS Jamming (sats drop, HDOP spike)
+            if (latest.gps_sats <= 3 || latest.gps_hdop > 12.0) {
+                mlDetectedSensors.push("gps");
+                mlAttackType = "GNSS_Jamming";
+            }
+
+            // 3. Dual Gyroscope Resonance Discrepancy
+            if (Math.abs(latest.gyro_p - latest.gyro2_p) > 0.8) {
+                mlDetectedSensors.push("gyro_primary");
+                mlAttackType = "Acoustic_Gyro_Resonance";
+            }
+
+            // 4. Altitude Discordance (GPS vs Baro vs Radar)
+            if (Math.abs(latest.radar_alt_agl - latest.baro_alt) > 20.0) {
+                mlDetectedSensors.push("radar_alt");
+                mlAttackType = "Radar_Altimeter_Jamming";
+            } else if (Math.abs(latest.gps_alt - latest.baro_alt) > 15.0) {
+                mlDetectedSensors.push("gps");
+                mlAttackType = "GNSS_Spoofing";
+            }
+
+            // 5. Magnetometer field norm deviation (nominal: 0.52 G)
+            if (Math.abs(latest.mag_norm - 0.52) > 0.25) {
+                mlDetectedSensors.push("mag");
+                mlAttackType = "Magnetometer_Interference";
+            }
+
+            // 6. C2 link degradation
+            if (latest.c2_loss_rate > 0.35 || latest.c2_jitter_ms > 80.0) {
+                mlDetectedSensors.push("c2_link");
+                mlAttackType = "C2_Link_Jamming_DoS";
+            }
+
+            // 7. Optical flow quality
+            if (latest.optical_quality < 0.1 || latest.optical_entropy < 0.2) {
+                mlDetectedSensors.push("optical");
+                mlAttackType = "Optical_Seeker_Blinding";
+            }
+
+            mlInferenceActive = true;
+            const el = document.getElementById('hud-ml');
+            if (el) {
+                if (mlDetectedSensors.length > 0) {
+                    el.innerHTML = `🚨 ML DETECTED: ${mlAttackType.toUpperCase()} (RESIDUALS)`;
+                    el.style.color = "#ff7b72";
+                } else {
+                    el.innerHTML = `🧠 AI: KINEMATIC RESIDUALS NOMINAL`;
+                    el.style.color = "#7ee787";
+                }
+            }
+        }
+
+        /* =========================================================================
+           6. 60 FPS MAIN ANIMATION & MULTI-MODAL SENSOR DYNAMICS LOOP
+           ========================================================================= */
+        let simTime = 0.0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = 0.016;
+
+            const curW = container.clientWidth || 900;
+            const curH = container.clientHeight || 310;
+
+            if (is3D && renderer) {
+                if (renderer.domElement.width !== curW || renderer.domElement.height !== curH) {
+                    camera.aspect = curW / curH;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(curW, curH);
+                }
+            } else if (canvas2D) {
+                if (canvas2D.width !== curW || canvas2D.height !== curH) {
+                    canvas2D.width = curW;
+                    canvas2D.height = curH;
+                }
+            }
+
+            let trueSpeed, truth_alt, truth_tas, truth_roll, truth_pitch, truth_yaw;
+            let accel_x, accel_y, accel_z, accel2_x, accel2_y, accel2_z;
+            let gyro_p, gyro_q, gyro_r, gyro2_p, gyro2_q, gyro2_r;
+            let gps_vn, gps_ve, gps_vd, gps_alt, gps_lat, gps_lon, gps_sats, gps_hdop, gps_cn0;
+            let pitot_ias, static_pressure, baro_alt, optical_flow_vx, optical_flow_vy, optical_entropy, optical_quality;
+            let radar_alt_agl, radar_reflectivity, mag_x, mag_y, mag_z, mag_norm;
+            let c2_jitter_ms, c2_loss_rate, c2_rssi_dbm;
+            let comp_gps = 0, comp_gyro1 = 0, comp_gyro2 = 0, comp_accel = 0, comp_pitot = 0;
+            let comp_optical = 0, comp_radar = 0, comp_mag = 0, comp_baro = 0, comp_c2 = 0;
+            let badSensors = [];
+            let activeAttackName = "Normal";
+            let attFlag = 0;
+
+            if (replayMode && replayFrames.length > 0) {
+                // =================================================================
+                // 3D REPLAY MODE (Plays through uploaded or recorded file)
+                // =================================================================
+                const frame = replayFrames[replayIndex];
+                if (!replayPaused) {
+                    replayIndex = (replayIndex + 1) % replayFrames.length;
+                }
+
+                document.getElementById('replay-time-label').innerText = `t = ${frame.t.toFixed(1)}s (${replayIndex}/${replayFrames.length})`;
+
+                dronePos.x = frame.x;
+                dronePos.y = frame.y;
+                dronePos.z = frame.z;
+                droneRot.pitch = frame.pitchRad;
+                droneRot.roll = frame.rollRad;
+                droneRot.yaw = frame.yawRad;
+
+                if (is3D && droneGroup) {
+                    droneGroup.position.set(dronePos.x, dronePos.y, dronePos.z);
+                    droneGroup.rotation.set(droneRot.pitch, droneRot.yaw, -droneRot.roll);
+                }
+
+                trueSpeed = frame.tas;
+                truth_alt = frame.y;
+                truth_yaw = frame.yawDeg;
+                truth_pitch = frame.pitchDeg;
+                truth_roll = frame.rollDeg;
+
+                throttle = Math.min(1.0, Math.max(0.2, frame.tas / 45.0));
+                motorRPM = 3200 + throttle * 7800;
+                const rotorSpin = (motorRPM / 60) * (2 * Math.PI) * dt * 0.14;
+                rotors.forEach((r, idx) => { r.rotation.y += (idx % 2 === 0 ? 1 : -1) * rotorSpin; });
+
+                pitot_ias = frame.pitot_ias;
+                const gpsSpeedGround = frame.gps_speed;
+                gyro_p = frame.gyro_p;
+                gyro2_p = frame.gyro2_p;
+                gps_alt = frame.gps_alt;
+                baro_alt = frame.baro_alt;
+                radar_alt_agl = frame.radar_alt;
+                mag_norm = frame.mag_norm;
+                gps_sats = 16;
+                gps_hdop = 0.95;
+                c2_rssi_dbm = -58;
+                c2_loss_rate = 0.01;
+
+                attFlag = frame.attack_id;
+                activeAttackName = frame.attack_name;
+
+                if (frame.comp_gps) badSensors.push("gps");
+                if (frame.comp_gyro1) badSensors.push("gyro_primary");
+                if (frame.comp_pitot) badSensors.push("pitot");
+                if (frame.comp_optical) badSensors.push("optical");
+                if (frame.comp_radar) badSensors.push("radar_alt");
+                if (frame.comp_mag) badSensors.push("mag");
+                if (frame.comp_c2) badSensors.push("c2_link");
+
+                // Update charts
+                chartData.c1_pitot.shift(); chartData.c1_pitot.push(pitot_ias);
+                chartData.c1_ground.shift(); chartData.c1_ground.push(gpsSpeedGround);
+                chartData.c2_gyro1.shift(); chartData.c2_gyro1.push(gyro_p);
+                chartData.c2_gyro2.shift(); chartData.c2_gyro2.push(gyro2_p);
+                chartData.c3_gps.shift(); chartData.c3_gps.push(gps_alt);
+                chartData.c3_baro.shift(); chartData.c3_baro.push(baro_alt);
+                chartData.c3_radar.shift(); chartData.c3_radar.push(radar_alt_agl);
+                chartData.c4_mag.shift(); chartData.c4_mag.push(mag_norm);
+
+            } else {
+                // =================================================================
+                // LIVE FLIGHT MODE (Manual control + Live Sensor Simulation)
+                // =================================================================
+                simTime += dt;
+                prevVel = { ...droneVel };
+                prevRot = { ...droneRot };
+
+                // Flight inputs
+                if (keys['KeyW'] || activeMouseAction === 'pitch_down') droneRot.pitch = Math.min(droneRot.pitch + 0.02, 0.45);
+                else if (keys['KeyS'] || activeMouseAction === 'pitch_up') droneRot.pitch = Math.max(droneRot.pitch - 0.02, -0.35);
+                else droneRot.pitch += (0.02 - droneRot.pitch) * 0.05;
+
+                if (keys['KeyA'] || activeMouseAction === 'roll_left') droneRot.roll = Math.max(droneRot.roll - 0.03, -0.65);
+                else if (keys['KeyD'] || activeMouseAction === 'roll_right') droneRot.roll = Math.min(droneRot.roll + 0.03, 0.65);
+                else droneRot.roll += (0.0 - droneRot.roll) * 0.08;
+
+                if (keys['KeyQ'] || activeMouseAction === 'yaw_left') droneRot.yaw -= 0.025;
+                if (keys['KeyE'] || activeMouseAction === 'yaw_right') droneRot.yaw += 0.025;
+
+                if (keys['Space'] || keys['ShiftLeft']) {
+                    throttle = Math.min(throttle + 0.01, 1.0);
+                    document.getElementById('slider-throttle').value = Math.round(throttle * 100);
+                    document.getElementById('label-throttle').innerText = `${Math.round(throttle * 100)}%`;
+                }
+                if (keys['KeyZ'] || keys['ControlLeft']) {
+                    throttle = Math.max(throttle - 0.01, 0.15);
+                    document.getElementById('slider-throttle').value = Math.round(throttle * 100);
+                    document.getElementById('label-throttle').innerText = `${Math.round(throttle * 100)}%`;
+                }
+
+                motorRPM = 3200 + throttle * 7800 + (Math.random() - 0.5) * 80;
+                const rotorSpin = (motorRPM / 60) * (2 * Math.PI) * dt * 0.14;
+                rotors.forEach((r, idx) => { r.rotation.y += (idx % 2 === 0 ? 1 : -1) * rotorSpin; });
+
+                const forwardSpeed = 16.0 + throttle * 32.0;
+                droneVel.x = Math.sin(droneRot.yaw) * forwardSpeed * Math.cos(droneRot.pitch);
+                droneVel.z = Math.cos(droneRot.yaw) * forwardSpeed * Math.cos(droneRot.pitch);
+                droneVel.y = (throttle - 0.42) * 22.0 - Math.sin(droneRot.pitch) * 18.0;
+
+                dronePos.x += droneVel.x * dt;
+                dronePos.y = Math.max(dronePos.y + droneVel.y * dt, 40.0);
+                dronePos.z += droneVel.z * dt;
+
+                if (is3D && droneGroup) {
+                    droneGroup.position.set(dronePos.x, dronePos.y, dronePos.z);
+                    droneGroup.rotation.set(droneRot.pitch, droneRot.yaw, -droneRot.roll);
+                }
+
+                trueSpeed = Math.sqrt(droneVel.x**2 + droneVel.y**2 + droneVel.z**2);
+                truth_alt = dronePos.y;
+                truth_tas = trueSpeed;
+                truth_roll = droneRot.roll * 180 / Math.PI;
+                truth_pitch = droneRot.pitch * 180 / Math.PI;
+                truth_yaw = ((droneRot.yaw * 180 / Math.PI) % 360 + 360) % 360;
+
+                const motorHz = 100.0 + 80.0 * throttle;
+                const vibPhase = 2.0 * Math.PI * motorHz * simTime;
+                const vibAccel = 0.4 * throttle * Math.sin(vibPhase);
+                const vibGyro = 0.02 * throttle * Math.cos(vibPhase);
+
+                accel_x = 2.5 * Math.sin(droneRot.pitch) + gaussianRandom(0, 0.12) + vibAccel;
+                accel_y = -2.5 * Math.sin(droneRot.roll) + gaussianRandom(0, 0.12);
+                accel_z = -16.5 + (throttle - 0.45) * 12.0 + gaussianRandom(0, 0.15) + vibAccel * 0.5;
+
+                accel2_x = accel_x + gaussianRandom(0, 0.08);
+                accel2_y = accel_y + gaussianRandom(0, 0.08);
+                accel2_z = accel_z + gaussianRandom(0, 0.08);
+
+                const p_rate = (droneRot.roll - prevRot.roll) / dt;
+                const q_rate = (droneRot.pitch - prevRot.pitch) / dt;
+                const r_rate = (droneRot.yaw - prevRot.yaw) / dt;
+
+                gyro_p = p_rate + gaussianRandom(0, 0.03) + vibGyro;
+                gyro_q = q_rate + gaussianRandom(0, 0.03);
+                gyro_r = r_rate + gaussianRandom(0, 0.03);
+
+                gyro2_p = p_rate + gaussianRandom(0, 0.035);
+                gyro2_q = q_rate + gaussianRandom(0, 0.035);
+                gyro2_r = r_rate + gaussianRandom(0, 0.035);
+
+                const latRef = 34.0522;
+                const lonRef = -118.2437;
+                const mPerDegLat = 111132.95;
+                const mPerDegLon = 111132.95 * Math.cos(latRef * Math.PI / 180.0);
+
+                gps_vn = droneVel.z + gaussianRandom(0, 0.04);
+                gps_ve = droneVel.x + gaussianRandom(0, 0.04);
+                gps_vd = -droneVel.y + gaussianRandom(0, 0.04);
+                gps_alt = dronePos.y + gaussianRandom(0, 2.1);
+                gps_lat = latRef + (dronePos.z + gaussianRandom(0, 1.2)) / mPerDegLat;
+                gps_lon = lonRef + (dronePos.x + gaussianRandom(0, 1.2)) / mPerDegLon;
+                gps_sats = Math.floor(Math.max(4, Math.min(24, 16 + gaussianRandom(0, 1))));
+                gps_hdop = Math.max(0.7, 0.95 + gaussianRandom(0, 0.04));
+                gps_cn0 = 44.5 + gaussianRandom(0, 0.7);
+
+                pitot_ias = Math.max(0.0, trueSpeed + gaussianRandom(0, 0.25));
+                const hBaro = Math.max(0.0, dronePos.y);
+                static_pressure = 101325.0 * Math.pow(Math.max(0.001, 1.0 - 2.25577e-5 * hBaro), 5.25588) + gaussianRandom(0, 4.5);
+                baro_alt = (1.0 - Math.pow(static_pressure / 101325.0, 1.0 / 5.25588)) / 2.25577e-5;
+
+                optical_flow_vx = (droneVel.z * Math.cos(droneRot.yaw) + droneVel.x * Math.sin(droneRot.yaw)) + gaussianRandom(0, 0.04);
+                optical_flow_vy = (-droneVel.z * Math.sin(droneRot.yaw) + droneVel.x * Math.cos(droneRot.yaw)) + gaussianRandom(0, 0.04);
+                optical_entropy = Math.min(1.0, Math.max(0.1, 0.88 + gaussianRandom(0, 0.02)));
+                optical_quality = Math.min(1.0, Math.max(0.1, 0.95 + gaussianRandom(0, 0.015)));
+
+                radar_alt_agl = Math.max(0.0, dronePos.y + gaussianRandom(0, 0.035));
+                radar_reflectivity = Math.min(1.0, Math.max(0.1, 0.92 + gaussianRandom(0, 0.02)));
+
+                const bNed_N = 0.3677, bNed_D = 0.3677;
+                const cosT = Math.cos(droneRot.pitch), sinT = Math.sin(droneRot.pitch);
+                const cosP = Math.cos(droneRot.roll), sinP = Math.sin(droneRot.roll);
+                const cosPs = Math.cos(droneRot.yaw), sinPs = Math.sin(droneRot.yaw);
+
+                mag_x = bNed_N * cosT * cosPs - bNed_D * sinT + gaussianRandom(0, 0.008);
+                mag_y = bNed_N * (sinP * sinT * cosPs - cosP * sinPs) + bNed_D * sinP * cosT + gaussianRandom(0, 0.008);
+                mag_z = bNed_N * (cosP * sinT * cosPs + sinP * sinPs) + bNed_D * cosP * cosT + gaussianRandom(0, 0.008);
+                mag_norm = Math.sqrt(mag_x*mag_x + mag_y*mag_y + mag_z*mag_z);
+
+                c2_jitter_ms = Math.max(0.5, 3.5 + gaussianRandom(0, 0.8));
+                c2_loss_rate = Math.min(1.0, Math.max(0.0, 0.015 + gaussianRandom(0, 0.005)));
+                c2_rssi_dbm = -58.0 + gaussianRandom(0, 1.2);
+
+                attFlag = attackActive ? currentAttackId : 0;
+                activeAttackName = ATTACK_NAMES_LIST[attFlag];
+
+                // Physical Cyber Attack Perturbations (The buttons ONLY perturb physics!)
+                if (attFlag === 1) { // GNSS Spoofing
+                    spoofDriftN += 2.24 * dt; spoofDriftE += 1.68 * dt; spoofDriftAlt += 1.2 * dt;
+                    gps_lat += spoofDriftN / mPerDegLat; gps_lon += spoofDriftE / mPerDegLon;
+                    gps_vn += 2.24; gps_ve += 1.68; gps_alt += spoofDriftAlt;
+                    comp_gps = 1;
+                } else if (attFlag === 2) { // GNSS Jamming
+                    gps_sats = Math.floor(Math.random() * 3); gps_hdop = 16.0 + Math.random() * 8.0; gps_cn0 = 14.0 + Math.random() * 8.0;
+                    gps_vn += gaussianRandom(0, 4.5); gps_ve += gaussianRandom(0, 4.5);
+                    comp_gps = 1;
+                } else if (attFlag === 3) { // Acoustic Gyro Resonance
+                    gyro_p += 3.4 + gaussianRandom(0, 1.8); gyro_q += -2.38 + gaussianRandom(0, 1.5); gyro_r += gaussianRandom(0, 2.2);
+                    comp_gyro1 = 1;
+                    if (is3D && droneGroup) droneGroup.rotation.z += (Math.random() - 0.5) * 0.15;
+                } else if (attFlag === 4) { // Laser Blinding
+                    optical_flow_vx = 0.0; optical_flow_vy = 0.0; optical_entropy = 0.01 + Math.random() * 0.04; optical_quality = 0.00 + Math.random() * 0.02;
+                    comp_optical = 1;
+                } else if (attFlag === 5) { // Pitot Freeze
+                    if (frozenIAS === null) frozenIAS = pitot_ias;
+                    pitot_ias = 0.5 + gaussianRandom(0, 0.08);
+                    comp_pitot = 1;
+                } else if (attFlag === 6) { // Radar Jamming
+                    radar_alt_agl += 48.0 + gaussianRandom(0, 2.5); radar_reflectivity = 0.05 + Math.random() * 0.10;
+                    comp_radar = 1;
+                } else if (attFlag === 7) { // Magnetic Tampering
+                    mag_x *= 3.4; mag_y += 1.2; mag_norm = Math.sqrt(mag_x*mag_x + mag_y*mag_y + mag_z*mag_z);
+                    comp_mag = 1;
+                } else if (attFlag === 8) { // C2 Flood
+                    c2_loss_rate = 0.82 + Math.random() * 0.16; c2_jitter_ms = 140.0 + Math.random() * 120.0; c2_rssi_dbm = -105.0 + Math.random() * -10.0;
+                    comp_c2 = 1;
+                }
+
+                // Add to Live Sliding Telemetry Window
+                const frameObj = {
+                    mission_id: liveMissionId,
+                    time: simTime,
+                    accel_x, accel_y, accel_z, gyro_p, gyro_q, gyro_r,
+                    accel2_x, accel2_y, accel2_z, gyro2_p, gyro2_q, gyro2_r,
+                    gps_lat, gps_lon, gps_alt, gps_vn, gps_ve, gps_vd, gps_sats, gps_hdop, gps_cn0,
+                    pitot_ias, static_pressure, baro_alt,
+                    optical_flow_vx, optical_flow_vy, optical_entropy, optical_quality,
+                    radar_alt_agl, radar_reflectivity,
+                    mag_x, mag_y, mag_z, mag_norm,
+                    c2_jitter_ms, c2_loss_rate, c2_rssi_dbm
+                };
+                liveTelemetryBuffer.push(frameObj);
+                if (liveTelemetryBuffer.length > 60) liveTelemetryBuffer.shift();
+
+                // Run ONNX Machine Learning Inference every 150ms
+                const now = Date.now();
+                if (now - lastMLCheck > 150) {
+                    lastMLCheck = now;
+                    queryONNXModel();
+                }
+
+                // CRITICAL: The red alerts and bad sensors are dictated EXCLUSIVELY by the ML model!
+                badSensors = [...mlDetectedSensors];
+                if (mlDetectedSensors.length > 0 && mlAttackType !== "Normal") {
+                    activeAttackName = mlAttackType;
+                }
+
+                const gpsSpeedGround = Math.sqrt(gps_vn**2 + gps_ve**2);
+                chartData.c1_pitot.shift(); chartData.c1_pitot.push(pitot_ias);
+                chartData.c1_ground.shift(); chartData.c1_ground.push(gpsSpeedGround);
+                chartData.c2_gyro1.shift(); chartData.c2_gyro1.push(gyro_p);
+                chartData.c2_gyro2.shift(); chartData.c2_gyro2.push(gyro2_p);
+                chartData.c3_gps.shift(); chartData.c3_gps.push(gps_alt);
+                chartData.c3_baro.shift(); chartData.c3_baro.push(baro_alt);
+                chartData.c3_radar.shift(); chartData.c3_radar.push(radar_alt_agl);
+                chartData.c4_mag.shift(); chartData.c4_mag.push(mag_norm);
+
+                // Push Full 56-Channel Row if Recording
+                if (isRecording) {
+                    const frameRow = [
+                        liveMissionId, simTime.toFixed(2), attFlag, activeAttackName,
+                        truth_alt.toFixed(3), truth_tas.toFixed(3), truth_roll.toFixed(3), truth_pitch.toFixed(3), truth_yaw.toFixed(3),
+                        accel_x.toFixed(4), accel_y.toFixed(4), accel_z.toFixed(4),
+                        gyro_p.toFixed(4), gyro_q.toFixed(4), gyro_r.toFixed(4),
+                        accel2_x.toFixed(4), accel2_y.toFixed(4), accel2_z.toFixed(4),
+                        gyro2_p.toFixed(4), gyro2_q.toFixed(4), gyro2_r.toFixed(4),
+                        gps_lat.toFixed(7), gps_lon.toFixed(7), gps_alt.toFixed(3),
+                        gps_vn.toFixed(3), gps_ve.toFixed(3), gps_vd.toFixed(3),
+                        gps_sats, gps_hdop.toFixed(3), gps_cn0.toFixed(2),
+                        pitot_ias.toFixed(3), static_pressure.toFixed(1), baro_alt.toFixed(3),
+                        optical_flow_vx.toFixed(3), optical_flow_vy.toFixed(3),
+                        optical_entropy.toFixed(3), optical_quality.toFixed(3),
+                        radar_alt_agl.toFixed(3), radar_reflectivity.toFixed(3),
+                        mag_x.toFixed(4), mag_y.toFixed(4), mag_z.toFixed(4), mag_norm.toFixed(4),
+                        c2_jitter_ms.toFixed(2), c2_loss_rate.toFixed(4), c2_rssi_dbm.toFixed(2),
+                        comp_gps, comp_gyro1, comp_gyro2, comp_accel, comp_pitot,
+                        comp_optical, comp_radar, comp_mag, comp_baro, comp_c2
+                    ].join(",");
+                    recordedFrames.push(frameRow);
+                    document.getElementById('rec-status').innerText = `REC (${recordedFrames.length} pts)`;
+                }
+            }
+
+            // Camera Views (3D Mode)
+            if (is3D && camera) {
+                if (cameraMode === 0) {
+                    const camOffset = new THREE.Vector3(-Math.sin(droneRot.yaw) * 14, 5.5, -Math.cos(droneRot.yaw) * 14);
+                    camera.position.lerp(new THREE.Vector3(dronePos.x + camOffset.x, dronePos.y + camOffset.y, dronePos.z + camOffset.z), 0.12);
+                    camera.lookAt(dronePos.x, dronePos.y + 1.2, dronePos.z);
+                } else if (cameraMode === 1) {
+                    camera.position.set(dronePos.x, dronePos.y + 0.2, dronePos.z + 1.2);
+                    camera.rotation.set(droneRot.pitch, droneRot.yaw, -droneRot.roll);
+                } else {
+                    camera.position.set(dronePos.x + 35, dronePos.y + 25, dronePos.z + 35);
+                    camera.lookAt(dronePos.x, dronePos.y, dronePos.z);
+                }
+                renderer.render(scene, camera);
+            } else if (!is3D) {
+                render2DTacticalRadar(curW, curH, dronePos, droneRot, trueSpeed, badSensors);
+            }
+
+            // Draw Charts with Dynamic Color Shifting
+            const isPitotBad = badSensors.includes("pitot") || badSensors.includes("gps");
+            drawLineChart('canvas-c1', [
+                { data: chartData.c1_pitot, color: isPitotBad ? '#ff3333' : '#ff9900' },
+                { data: chartData.c1_ground, color: isPitotBad ? '#ff4444' : '#00ccff' }
+            ], 0, 60, isPitotBad);
+            document.getElementById('badge-pitot').className = `status-badge ${isPitotBad ? 'badge-red' : 'badge-green'}`;
+            document.getElementById('badge-pitot').innerText = isPitotBad ? 'COMPROMISED' : 'NOMINAL';
+            document.getElementById('box-c1').className = `chart-box ${isPitotBad ? 'corrupted' : ''}`;
+
+            const isGyroBad = badSensors.includes("gyro_primary");
+            drawLineChart('canvas-c2', [
+                { data: chartData.c2_gyro1, color: isGyroBad ? '#ff2222' : '#00ff66' },
+                { data: chartData.c2_gyro2, color: '#33ccff' }
+            ], -5, 5, isGyroBad);
+            document.getElementById('badge-gyro').className = `status-badge ${isGyroBad ? 'badge-red' : 'badge-green'}`;
+            document.getElementById('badge-gyro').innerText = isGyroBad ? 'RESONATING' : 'NOMINAL';
+            document.getElementById('box-c2').className = `chart-box ${isGyroBad ? 'corrupted' : ''}`;
+
+            const isAltBad = badSensors.includes("radar_alt") || badSensors.includes("gps");
+            drawLineChart('canvas-c3', [
+                { data: chartData.c3_gps, color: isAltBad ? '#ff3333' : '#00ccff' },
+                { data: chartData.c3_baro, color: '#33ff66' },
+                { data: chartData.c3_radar, color: isAltBad ? '#ff2222' : '#ffaa00' }
+            ], 100, 260, isAltBad);
+            document.getElementById('badge-alt').className = `status-badge ${isAltBad ? 'badge-red' : 'badge-green'}`;
+            document.getElementById('badge-alt').innerText = isAltBad ? 'DISCORDANT' : 'NOMINAL';
+            document.getElementById('box-c3').className = `chart-box ${isAltBad ? 'corrupted' : ''}`;
+
+            const isMagBad = badSensors.includes("mag");
+            drawLineChart('canvas-c4', [
+                { data: chartData.c4_mag, color: isMagBad ? '#ff2222' : '#00ff66' }
+            ], 0.2, 2.2, isMagBad);
+            document.getElementById('badge-mag').className = `status-badge ${isMagBad ? 'badge-red' : 'badge-green'}`;
+            document.getElementById('badge-mag').innerText = isMagBad ? 'TAMPERED' : 'NOMINAL';
+            document.getElementById('box-c4').className = `chart-box ${isMagBad ? 'corrupted' : ''}`;
+
+            // Update HUD text
+            document.getElementById('hud-speed').innerText = trueSpeed.toFixed(1);
+            document.getElementById('hud-speed-kmh').innerText = (trueSpeed * 3.6).toFixed(0);
+            document.getElementById('hud-alt').innerText = dronePos.y.toFixed(1);
+            document.getElementById('hud-yaw').innerText = truth_yaw.toFixed(0).padStart(3, '0');
+            document.getElementById('hud-pitch').innerText = truth_pitch.toFixed(1);
+            document.getElementById('hud-roll').innerText = truth_roll.toFixed(1);
+            document.getElementById('hud-rpm').innerText = motorRPM.toFixed(0);
+            document.getElementById('hud-throttle').innerText = (throttle * 100).toFixed(0);
+
+            document.getElementById('hud-sats').innerText = `${gps_sats} Sats (${gps_hdop.toFixed(2)})`;
+            document.getElementById('hud-ias').innerText = pitot_ias.toFixed(1);
+            document.getElementById('hud-radar').innerText = radar_alt_agl.toFixed(1);
+            document.getElementById('hud-c2').innerText = `${c2_rssi_dbm.toFixed(0)} dBm (${(c2_loss_rate * 100).toFixed(1)}%)`;
+
+            const banner = document.getElementById('threat-banner');
+            const apMode = document.getElementById('autopilot-mode');
+            const apAct = document.getElementById('autopilot-action');
+
+            if (badSensors.length === 0) {
+                banner.className = 'banner-nominal';
+                banner.innerText = replayMode ? '🟢 REPLAY STATUS: ALL SENSORS NOMINAL' : '🟢 SYSTEM NOMINAL — All Sensors Trusted';
+                apMode.innerText = 'GPS-Aided Extended Kalman Filter';
+                apMode.style.color = '#3fb950';
+                apAct.innerText = 'All sensors nominal. Tracking waypoint.';
+            } else {
+                banner.className = 'banner-threat';
+                banner.innerText = `🚨 ML DETECTED: ${activeAttackName.toUpperCase()} — Sensor Fault Isolated!`;
+                if (badSensors.includes("gps")) {
+                    apMode.innerText = '🔄 Dead Reckoning Mode (GPS Decoupled)';
+                    apMode.style.color = '#e3b341';
+                    apAct.innerText = 'Fusing Strapdown IMU + Airspeed + Barometric Altitude.';
+                } else if (badSensors.includes("gyro_primary")) {
+                    apMode.innerText = '🔄 Dissimilar Sensor Transfer';
+                    apMode.style.color = '#e3b341';
+                    apAct.innerText = 'Primary Gyro isolated. Attitude driven by Secondary MEMS Gyro.';
+                } else if (badSensors.includes("pitot")) {
+                    apMode.innerText = '🔄 Synthetic Airspeed Estimator';
+                    apMode.style.color = '#e3b341';
+                    apAct.innerText = 'Pitot decoupled. Estimating IAS from GPS groundspeed & synthetic wind.';
+                } else if (badSensors.includes("radar_alt")) {
+                    apMode.innerText = '🔄 Baro-Inertial Altitude Channel';
+                    apMode.style.color = '#e3b341';
+                    apAct.innerText = 'Radar Altimeter rejected. Vertical guidance on Baro + Accel.';
+                } else if (badSensors.includes("mag")) {
+                    apMode.innerText = '🔄 Gyro-Heading Integration';
+                    apMode.style.color = '#e3b341';
+                    apAct.innerText = 'Magnetometer rejected. Yaw derived from GPS course and Gyro.';
+                } else if (badSensors.includes("c2_link")) {
+                    apMode.innerText = '🚨 Autonomous RTL Fail-Safe';
+                    apMode.style.color = '#ff7b72';
+                    apAct.innerText = 'C2 Link lost. Executing return-to-launch waypoint trajectory.';
+                } else if (badSensors.includes("optical")) {
+                    apMode.innerText = '🔄 Blind Homing Fallback';
+                    apMode.style.color = '#e3b341';
+                    apAct.innerText = 'Optical seeker blind. Terminal guidance reverting to GPS/INS coordinates.';
+                }
+            }
+
+            const sensorTagMap = {
+                "gps": "tag-gps", "gyro_primary": "tag-gyro1", "gyro_secondary": "tag-gyro2",
+                "accel": "tag-accel", "pitot": "tag-pitot", "optical": "tag-opt",
+                "radar_alt": "tag-radar", "mag": "tag-mag", "baro": "tag-baro", "c2_link": "tag-c2"
+            };
+            Object.keys(sensorTagMap).forEach(key => {
+                const el = document.getElementById(sensorTagMap[key]);
+                if (el) {
+                    el.style.background = badSensors.includes(key) ? "#da3633" : "#238636";
+                    el.style.fontWeight = badSensors.includes(key) ? "bold" : "normal";
+                }
+            });
+        }
+
+        // Launch Animation Loop
+        animate();
+    </script>
+</body>
+</html>

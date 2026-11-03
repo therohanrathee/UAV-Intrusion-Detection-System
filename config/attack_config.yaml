@@ -1,0 +1,80 @@
+# Military Cyber-Physical & Electronic Warfare Attack Profiles
+# Configures attack dynamics, injection profiles, and sensor compromise ground-truth masks
+
+attacks:
+  0:
+    name: "Normal"
+    description: "Nominal combat flight profile including high-G turns, dives, and Dryden wind turbulence"
+    compromised_sensors: []
+
+  1:
+    name: "GNSS_Spoofing"
+    description: "False satellite RF broadcast causing progressive false position/velocity drift"
+    subtypes: ["gradual_drift", "velocity_ramp", "position_step"]
+    drift_rate_m_s: 2.5           # Velocity of false vector drift
+    max_drift_offset_m: 85.0
+    compromised_sensors: ["gps"]
+
+  2:
+    name: "GNSS_Jamming"
+    description: "High-power RF noise barrage across GPS L1/L2 bands"
+    sat_count_drop_to: [0, 3]
+    hdop_spike: 18.5
+    cn0_drop_db: 28.0
+    compromised_sensors: ["gps"]
+
+  3:
+    name: "Acoustic_Gyro_Resonance"
+    description: "Targeted acoustic ultrasonic beam matching MEMS primary gyro resonant frequency (9.25 kHz)"
+    resonant_axis: "all"           # Affects roll, pitch, yaw
+    dc_bias_shift_rad_s: 3.8       # Extreme false rotational offset (~217 deg/s)
+    variance_multiplier: 120.0     # Violent sensor reading oscillation
+    compromised_sensors: ["gyro_primary"]
+
+  4:
+    name: "Optical_Seeker_Blinding"
+    description: "Directed infrared/visible laser dazzler or high-opacity aerosol obscurant on seeker head"
+    entropy_drop_to: 0.05          # Visual texture collapses to uniform whiteout/blackout
+    tracking_quality_drop_to: 0.02
+    optical_flow_dropout: true
+    compromised_sensors: ["optical"]
+
+  5:
+    name: "Pitot_Tube_Fault"
+    description: "Dynamic pressure port icing, foreign object debris (FOD), or intentional differential pressure spoofing"
+    subtypes: ["freezing_constant", "total_blockage_zero", "scale_multiplier"]
+    compromised_sensors: ["pitot"]
+
+  6:
+    name: "Radar_Altimeter_Jamming"
+    description: "RF deceptive repeater or noise jammer corrupting AGL radar altitude return"
+    false_altitude_offset_m: 45.0
+    reflectivity_collapse: 0.1
+    compromised_sensors: ["radar_alt"]
+
+  7:
+    name: "Magnetometer_Interference"
+    description: "High-power electromagnetic coil or local magnetic decoy corrupting heading"
+    field_norm_multiplier: 3.2     # Total field leaps from 0.52 Gauss to ~1.66 Gauss
+    yaw_deception_deg: 55.0
+    compromised_sensors: ["mag"]
+
+  8:
+    name: "C2_Link_Jamming_DoS"
+    description: "Barrage RF jamming on 915MHz/2.4GHz control link with buffer exhaustion flood"
+    loss_rate_spike: 0.85          # 85% packet loss
+    jitter_spike_ms: 180.0         # Severe packet delay variance
+    rssi_collapse_dbm: -105.0
+    compromised_sensors: ["c2_link"]
+
+all_sensors:
+  - "gps"
+  - "gyro_primary"
+  - "gyro_secondary"
+  - "accel"
+  - "pitot"
+  - "optical"
+  - "radar_alt"
+  - "mag"
+  - "baro"
+  - "c2_link"

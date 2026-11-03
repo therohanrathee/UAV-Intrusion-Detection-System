@@ -1,0 +1,24 @@
+{
+  "deep_model": {
+    "attack_accuracy": 0.9592846270928462,
+    "attack_macro_f1": 0.9570472193360122,
+    "sensor_exact_match_ratio": 0.9573820395738204,
+    "per_sensor_accuracy": {
+      "gps": 0.9897260273972602,
+      "gyro_primary": 0.9998097412480974,
+      "gyro_secondary": 1.0,
+      "accel": 1.0,
+      "pitot": 0.968607305936073,
+      "optical": 0.9996194824961948,
+      "radar_alt": 0.9998097412480974,
+      "mag": 0.9998097412480974,
+      "baro": 1.0,
+      "c2_link": 1.0
+    }
+  },
+  "lightgbm_model": {
+    "attack_accuracy": 0.9442541856925418,
+    "attack_macro_f1": 0.930381427928006,
+    "sensor_exact_match_ratio": 0.9408295281582952
+  }
+}
