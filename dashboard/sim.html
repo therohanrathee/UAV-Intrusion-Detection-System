@@ -1371,7 +1371,6 @@
 
                 document.getElementById('replay-time-label').innerText = `t = ${frame.t.toFixed(1)}s (${replayIndex}/${replayFrames.length})`;
 
-                const targetPos = new THREE.Vector3(frame.x, frame.y, frame.z);
                 if (isFirstReplayFrame) {
                     dronePos.x = frame.x;
                     dronePos.y = frame.y;
@@ -1381,7 +1380,9 @@
                     droneRot.yaw = frame.yawRad;
                     isFirstReplayFrame = false;
                 } else {
-                    dronePos.lerp(targetPos, 0.35);
+                    dronePos.x += (frame.x - dronePos.x) * 0.35;
+                    dronePos.y += (frame.y - dronePos.y) * 0.35;
+                    dronePos.z += (frame.z - dronePos.z) * 0.35;
                     droneRot.pitch += (frame.pitchRad - droneRot.pitch) * 0.35;
                     droneRot.roll += (frame.rollRad - droneRot.roll) * 0.35;
                     let diffYaw = frame.yawRad - droneRot.yaw;
