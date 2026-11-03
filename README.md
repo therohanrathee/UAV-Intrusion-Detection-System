@@ -1,6 +1,6 @@
 # Tactical UAV & Loitering Munition Cyber-Physical Intrusion Detection Suite (IDS)
 
-[![Tests](https://img.shields.io/badge/tests-7%20passed-success?style=flat-square&logo=pytest)](file:///Users/rohan/Projects/UAV%20Intrusion%20Detection%20System/tests)
+[![Tests](https://img.shields.io/badge/tests-8%20passed-success?style=flat-square&logo=pytest)](file:///Users/rohan/Projects/UAV%20Intrusion%20Detection%20System/tests)
 [![Python Version](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11-blue?style=flat-square&logo=python)](https://www.python.org/)
 [![Inference Engine](https://img.shields.io/badge/inference-ONNX%20Runtime%20(0.44ms)-orange?style=flat-square&logo=onnx)](file:///Users/rohan/Projects/UAV%20Intrusion%20Detection%20System/weights/uav_ids_model.onnx)
 [![Model Size](https://img.shields.io/badge/model%20size-208%20KB-brightgreen?style=flat-square)](file:///Users/rohan/Projects/UAV%20Intrusion%20Detection%20System/weights)
@@ -120,7 +120,7 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 4. Verify installation by running unit tests
+# 4. Verify installation by running unit tests (including raw unlabeled telemetry tests)
 PYTHONPATH=. pytest tests/ -v
 ```
 
