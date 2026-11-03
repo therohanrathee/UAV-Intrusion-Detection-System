@@ -151,16 +151,30 @@ PYTHONPATH=. pytest tests/ -v
 
 ### Windows Setup (PowerShell / Command Prompt)
 
-#### 🪟 1-Click Windows Autonomous Launcher (Recommended for Demos & Presentations)
+#### 🪟 1-Click Windows Autonomous Launchers (Recommended for Demos & Presentations)
 
-Simply double-click **`START_TACTICAL_IDS.bat`** (or **`RUN_TACTICAL_SUITE.bat`**) in the project root directory!
+For seamless execution on any Windows 10/11 machine without manual command-line typing, the repository includes self-contained batch scripts:
 
-The autonomous launcher handles all system configuration automatically:
-- **Auto-Discovers Python**: Automatically searches system `PATH`, the `py` launcher, `%LocalAppData%\Programs\Python\...`, and `C:\Program Files\Python\...` even if Python was installed without checking "Add to PATH".
-- **Auto-Bootstraps `pip`**: If `pip` is missing or broken, it repairs and bootstraps `pip` directly from Python's offline standard library (`python -m ensurepip --default-pip`).
-- **Automates Virtual Environment**: Creates `./venv` cleanly and installs all dependencies with CPU-optimized acceleration wheels.
-- **Instant Launch (< 2s)**: Once installed, subsequent launches bypass setup checks and launch in under 2 seconds.
-- **Zero-Manual Terminal Typing**: Spawns the ONNX edge inference daemon, boots the Streamlit tactical cockpit, and opens `http://localhost:8501` in your default web browser automatically.
+| Batch Script | Role & Functionality |
+| :--- | :--- |
+| **`START_TACTICAL_IDS.bat`** | **Primary Master Launcher**: Auto-detects Python, auto-bootstraps `pip`, creates `venv`, installs dependencies with fast CPU wheels, starts background ONNX engine (Port 8502), boots Streamlit (Port 8501), and opens the browser. |
+| **`RUN_TACTICAL_SUITE.bat`** | **Launcher Alias**: Direct shortcut that delegates to `START_TACTICAL_IDS.bat`. |
+| **`setup_windows.bat`** | **Environment-Only Setup**: Scans Python, bootstraps `pip`, creates `venv`, and pre-installs dependencies without launching the servers. |
+| **`run_dashboard.bat`** | **Quick Start**: Autonomous launch shortcut for the tactical dashboard and inference suite. |
+
+##### Automated Error Recovery & Self-Healing:
+- **Python Multi-Path Discovery**: Automatically searches system `PATH`, the Windows `py` launcher, `%LocalAppData%\Programs\Python\Python39-312`, and `C:\Program Files\Python39-312`. Works even if the installer's "Add Python to PATH" checkbox was left unchecked.
+- **Offline `pip` Auto-Bootstrapping**: If `pip` is missing, corrupted, or stripped in a minimal installation, the launcher repairs and bootstraps it directly from Python's offline standard library using `python -m ensurepip --default-pip` (zero internet required for `pip`).
+- **Winget & Python Auto-Prompt**: If no Python 3.8+ runtime is found on the machine, the script detects if Windows Package Manager (`winget`) is present and offers a 1-click automated install of Python 3.11 with PATH and pip enabled. If winget is unavailable, it prompts to open the official python.org download page in the default browser.
+- **Fast Startup (< 2 seconds)**: Runs an instant import check on key packages (`streamlit`, `onnxruntime`, `pandas`, `sklearn`, etc.). If dependencies are already satisfied, pip installation is bypassed.
+- **Persistent Output & Diagnostics**: If any error occurs, the Command Prompt window pauses with diagnostic guidance instead of abruptly vanishing.
+
+##### Step-by-Step Presentation Instructions:
+1. Double-click **`START_TACTICAL_IDS.bat`** (or `RUN_TACTICAL_SUITE.bat`).
+2. *(First run only)*: If Windows SmartScreen displays *"Windows protected your PC"*, click **More info** $\rightarrow$ **Run anyway**.
+3. Keep the Command Prompt terminal window open in the background while presenting.
+4. Your default web browser will automatically open **`http://localhost:8501`**.
+5. To stop the application session when finished, switch to the Command Prompt window and press `Ctrl+C`.
 
 ---
 
