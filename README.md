@@ -151,6 +151,19 @@ PYTHONPATH=. pytest tests/ -v
 
 ### Windows Setup (PowerShell / Command Prompt)
 
+#### 🪟 1-Click Windows Autonomous Launcher (Recommended for Demos & Presentations)
+
+Simply double-click **`START_TACTICAL_IDS.bat`** (or **`RUN_TACTICAL_SUITE.bat`**) in the project root directory!
+
+The autonomous launcher handles all system configuration automatically:
+- **Auto-Discovers Python**: Automatically searches system `PATH`, the `py` launcher, `%LocalAppData%\Programs\Python\...`, and `C:\Program Files\Python\...` even if Python was installed without checking "Add to PATH".
+- **Auto-Bootstraps `pip`**: If `pip` is missing or broken, it repairs and bootstraps `pip` directly from Python's offline standard library (`python -m ensurepip --default-pip`).
+- **Automates Virtual Environment**: Creates `./venv` cleanly and installs all dependencies with CPU-optimized acceleration wheels.
+- **Instant Launch (< 2s)**: Once installed, subsequent launches bypass setup checks and launch in under 2 seconds.
+- **Zero-Manual Terminal Typing**: Spawns the ONNX edge inference daemon, boots the Streamlit tactical cockpit, and opens `http://localhost:8501` in your default web browser automatically.
+
+---
+
 #### Using PowerShell:
 ```powershell
 # 1. Clone repository
@@ -165,7 +178,7 @@ python -m venv venv
 
 # 3. Upgrade pip and install dependencies
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
 # 4. Verify installation
 $env:PYTHONPATH="."
@@ -177,7 +190,7 @@ pytest tests/ -v
 python -m venv venv
 call venv\Scripts\activate.bat
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 set PYTHONPATH=.
 pytest tests\ -v
 ```
