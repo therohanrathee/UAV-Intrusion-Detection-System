@@ -707,6 +707,7 @@
         let replayIndex = 0;
         let replayPaused = false;
         let replayFileName = "";
+        let isFirstReplayFrame = true;
 
         function triggerReplayUpload() {
             document.getElementById('input-replay-file').click();
@@ -810,11 +811,32 @@
                 return;
             }
 
+            // Zero-phase spatial filtering to remove simulated GPS receiver white noise (~1.2m jitter)
+            if (frames.length > 4) {
+                const smoothedX = [];
+                const smoothedZ = [];
+                for (let i = 0; i < frames.length; i++) {
+                    let sumX = 0, sumZ = 0, count = 0;
+                    for (let w = Math.max(0, i - 2); w <= Math.min(frames.length - 1, i + 2); w++) {
+                        sumX += frames[w].x;
+                        sumZ += frames[w].z;
+                        count++;
+                    }
+                    smoothedX.push(sumX / count);
+                    smoothedZ.push(sumZ / count);
+                }
+                for (let i = 0; i < frames.length; i++) {
+                    frames[i].x = smoothedX[i];
+                    frames[i].z = smoothedZ[i];
+                }
+            }
+
             replayFrames = frames;
             replayIndex = 0;
             replayMode = true;
             replayPaused = false;
             replayFileName = fileName;
+            isFirstReplayFrame = true;
             
             document.getElementById('replay-bar').style.display = 'flex';
             document.getElementById('replay-fname').innerText = fileName;
@@ -829,12 +851,14 @@
 
         function stepReplay(delta) {
             replayIndex = Math.max(0, Math.min(replayFrames.length - 1, replayIndex + delta));
+            isFirstReplayFrame = true;
         }
 
         function exitReplayMode() {
             replayMode = false;
             replayFrames = [];
             replayIndex = 0;
+            isFirstReplayFrame = true;
             document.getElementById('replay-bar').style.display = 'none';
             document.getElementById('hud-focus-hint').innerText = "🖱️ CLICK TO FLY (W/S/A/D/Space)";
             document.getElementById('hud-focus-hint').style.color = "#58a6ff";
@@ -1347,12 +1371,24 @@
 
                 document.getElementById('replay-time-label').innerText = `t = ${frame.t.toFixed(1)}s (${replayIndex}/${replayFrames.length})`;
 
-                dronePos.x = frame.x;
-                dronePos.y = frame.y;
-                dronePos.z = frame.z;
-                droneRot.pitch = frame.pitchRad;
-                droneRot.roll = frame.rollRad;
-                droneRot.yaw = frame.yawRad;
+                const targetPos = new THREE.Vector3(frame.x, frame.y, frame.z);
+                if (isFirstReplayFrame) {
+                    dronePos.x = frame.x;
+                    dronePos.y = frame.y;
+                    dronePos.z = frame.z;
+                    droneRot.pitch = frame.pitchRad;
+                    droneRot.roll = frame.rollRad;
+                    droneRot.yaw = frame.yawRad;
+                    isFirstReplayFrame = false;
+                } else {
+                    dronePos.lerp(targetPos, 0.35);
+                    droneRot.pitch += (frame.pitchRad - droneRot.pitch) * 0.35;
+                    droneRot.roll += (frame.rollRad - droneRot.roll) * 0.35;
+                    let diffYaw = frame.yawRad - droneRot.yaw;
+                    while (diffYaw < -Math.PI) diffYaw += 2 * Math.PI;
+                    while (diffYaw > Math.PI) diffYaw -= 2 * Math.PI;
+                    droneRot.yaw += diffYaw * 0.35;
+                }
 
                 if (is3D && droneGroup) {
                     droneGroup.position.set(dronePos.x, dronePos.y, dronePos.z);
