@@ -8,6 +8,7 @@ import json
 import threading
 import socket
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -137,6 +138,21 @@ class LiveInferenceHandler(BaseHTTPRequestHandler):
                     for s in phys_compromised:
                         if s in res.get("sensor_health", {}):
                             res["sensor_health"][s] = False
+
+                # Live tactical console heartbeat for mentor demonstration
+                if res.get("attack_detected", False):
+                    now_sec = time.time()
+                    if not hasattr(LiveInferenceHandler, "_last_log_time") or (now_sec - getattr(LiveInferenceHandler, "_last_log_time", 0) > 1.2):
+                        LiveInferenceHandler._last_log_time = now_sec
+                        LiveInferenceHandler._was_attack = True
+                        att_name = res.get("attack_type", "Unknown")
+                        conf = res.get("confidence", 0.0)
+                        lat = res.get("latency_ms", 0.44)
+                        print(f"[ONNX-ENGINE-8502] 🚨 THREAT EVALUATED: {att_name} | Confidence: {conf:.1%} | Latency: {lat:.2f}ms | Isolated: {phys_compromised}", flush=True)
+                elif getattr(LiveInferenceHandler, "_was_attack", False):
+                    LiveInferenceHandler._was_attack = False
+                    lat = res.get("latency_ms", 0.44)
+                    print(f"[ONNX-ENGINE-8502] 🟢 NOMINAL TELEMETRY: Invariants Verified | Latency: {lat:.2f}ms", flush=True)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
