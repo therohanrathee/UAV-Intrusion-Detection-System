@@ -123,12 +123,28 @@ def train_deep_model(
     return model
 
 
+import argparse
+from models.export_onnx import export_to_onnx
+from evaluation.report_generator import generate_research_figures
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Train Tactical UAV Intrusion Detection Models")
+    parser.add_argument("--epochs", type=int, default=12, help="Number of training epochs for deep model (default: 12)")
+    parser.add_argument("--batch-size", type=int, default=128, help="Batch size for training (default: 128)")
+    parser.add_argument("--lr", type=float, default=1.5e-3, help="Learning rate (default: 0.0015)")
+    parser.add_argument("--export-onnx", action="store_true", default=True, help="Automatically export trained model to ONNX (default: True)")
+    parser.add_argument("--no-export-onnx", dest="export_onnx", action="store_false", help="Disable automatic ONNX export")
+    parser.add_argument("--eval-report", action="store_true", default=True, help="Regenerate evaluation figures and confusion matrix (default: True)")
+    parser.add_argument("--no-eval-report", dest="eval_report", action="store_false", help="Disable figure generation")
+    args = parser.parse_args()
+
     Path("checkpoints").mkdir(parents=True, exist_ok=True)
     Path("evaluation").mkdir(parents=True, exist_ok=True)
     Path("weights").mkdir(parents=True, exist_ok=True)
     device = get_device()
     print(f"Using Compute Device: {device}")
+    print(f"Hyperparameters: Epochs={args.epochs}, BatchSize={args.batch_size}, LR={args.lr}")
 
     # 1. Load Data
     print("Loading Parquet datasets...")
@@ -162,7 +178,7 @@ def main():
     X_test = scaler.transform(X_test_raw.reshape(-1, F)).reshape(len(X_test_raw), T, F).astype(np.float32)
 
     # DataLoaders for Deep Model
-    batch_size = 128
+    batch_size = args.batch_size
     train_dataset = TelemetrySequenceDataset(X_train, y_att_train, y_sen_train)
     val_dataset = TelemetrySequenceDataset(X_val, y_att_val, y_sen_val)
     test_dataset = TelemetrySequenceDataset(X_test, y_att_test, y_sen_test)
@@ -178,8 +194,8 @@ def main():
         in_features=F,
         num_attacks=len(ATTACK_NAMES),
         num_sensors=len(SENSOR_KEYS),
-        epochs=12,
-        lr=1.5e-3,
+        epochs=args.epochs,
+        lr=args.lr,
         device=device,
         save_path="checkpoints/best_deep_model.pt"
     )
@@ -251,6 +267,23 @@ def main():
         json.dump(benchmarks, f, indent=2)
 
     print("Benchmark results saved to evaluation/benchmark_results.json")
+
+    # 8. Export to Production ONNX
+    if args.export_onnx:
+        print("\n================== ONNX EDGE EXPORT ==================")
+        export_to_onnx(
+            checkpoint_path="checkpoints/best_deep_model.pt",
+            output_onnx_path="weights/uav_ids_model.onnx",
+            window_size=50,
+            in_features=F
+        )
+
+    # 9. Regenerate Dashboard Figures
+    if args.eval_report:
+        print("\n================== REGENERATING DASHBOARD FIGURES ==================")
+        generate_research_figures()
+
+    print("\n✓ Full model training and deployment export finished successfully!")
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ The system ingests high-rate (50–60 Hz), 56-channel avionics telemetry, comput
 - [Benchmark Results](#-benchmark-results)
 - [Cross-Platform Installation (Windows, Mac, Linux)](#-cross-platform-installation)
 - [Quick Start & Usage](#-quick-start--usage)
+- [Training & Retraining with Larger Datasets & Flight Recordings](#-training--retraining-with-larger-datasets--flight-recordings)
 - [Interactive Tactical Dashboard & 3D Flight Arena](#-interactive-tactical-dashboard--3d-flight-arena)
 - [Mathematical Formulation of Physics Residuals](#-mathematical-formulation-of-physics-residuals)
 - [Comprehensive Attack Vector Profiles & Detection Mechanics](#-comprehensive-attack-vector-profiles--detection-mechanics)
@@ -308,20 +309,93 @@ print(f"Latency:         {result['latency_ms']:.3f} ms")
 
 ---
 
-### 3. Re-Generate Datasets & Train from Scratch
-```bash
-# 1. Generate full synthetic dataset (310,500 flight samples across 9 classes)
-python sim/build_datasets.py
+## 🧠 Training & Retraining with Larger Datasets & Flight Recordings
 
-# 2. Train the Deep Multi-Task Sequence Model (PyTorch / MPS / CUDA / CPU)
-python models/train.py
+The system supports scaling training data in two complementary ways:
+1. **Synthetic Mission Scaling**: Generate thousands of randomized flight missions with dynamic wind gusts, mass drift, and diverse attack timing.
+2. **Manual Cockpit Flight Logs**: Ingest user-recorded flight CSVs captured from the interactive 3D Flight Arena.
 
-# 3. Export trained checkpoint to optimized ONNX format
-python models/export_onnx.py
+---
 
-# 4. Generate publication-ready figures & confusion matrices
-python evaluation/report_generator.py
+### Where to Place Recorded Flight Files
+
+When you record a manual flight in the 3D Flight Arena (Tab 1) and click **💾 EXPORT CSV**, place the downloaded CSV file into:
+```text
+data/recorded_missions/
 ```
+*(Example: `data/recorded_missions/my_manual_flight_recording_01.csv`)*
+
+> [!TIP]
+> The in-cockpit flight recorder automatically captures all **56 telemetry and truth channels** (`pitot_ias`, `accel_x`, `gps_lat`, `attack_id`, `compromised_*` flags). Therefore, any exported flight log is immediately ready for supervised training without manual annotation.
+
+---
+
+### Step-by-Step Retraining Workflow
+
+#### Step 1: Rebuild & Scale the Dataset Splits
+Run `sim/build_datasets.py` to build the training, validation, and test Parquet splits. Use `--include-recorded` to scan and merge your manual flight logs:
+
+```bash
+# Basic run with default synthetic missions (15/class) + merge manual recordings:
+PYTHONPATH=. python sim/build_datasets.py --include-recorded
+
+# Scale to a larger dataset (e.g. 50 missions/class, 45 seconds each = ~400,000 samples):
+PYTHONPATH=. python sim/build_datasets.py --train-missions 50 --duration 45.0 --include-recorded
+```
+
+| Parameter | Default | Description |
+| :--- | :---: | :--- |
+| `--train-missions` | `15` | Synthetic missions per attack class for training (15 × 9 = 135 missions). |
+| `--val-missions` | `4` | Synthetic missions per class for validation. |
+| `--test-missions` | `4` | Holdout test missions per class for benchmark metrics. |
+| `--duration` | `30.0` | Flight duration in seconds for each synthetic mission. |
+| `--include-recorded` | `False` | Automatically merges manual flight CSVs from `data/recorded_missions/`. |
+| `--recorded-dir` | `data/recorded_missions` | Folder containing manual flight CSV files. |
+
+Outputs are saved as compressed Parquet splits:
+- `data/train/train_telemetry.parquet`
+- `data/val/val_telemetry.parquet`
+- `data/test/test_telemetry.parquet`
+
+---
+
+#### Step 2: Train the Neural Network & Tree Ensemble
+Run `models/train.py` to train both the Deep Sequence Model (PyTorch) and the LightGBM baseline:
+
+```bash
+# Standard training (12 epochs, auto-exports ONNX and updates benchmark figures):
+PYTHONPATH=. python models/train.py
+
+# Custom hyperparameters (e.g., 20 epochs, batch size 64):
+PYTHONPATH=. python models/train.py --epochs 20 --batch-size 64 --lr 0.001
+```
+
+**What `models/train.py` automatically does:**
+1. Fits feature standardizer and saves `checkpoints/scaler.joblib`.
+2. Trains `UAVMultiTaskDeepNet` (PyTorch with early checkpointing) $\rightarrow$ saves `checkpoints/best_deep_model.pt`.
+3. Trains `UAVTreeEnsemble` (LightGBM) $\rightarrow$ saves `checkpoints/lgb_model.joblib`.
+4. Evaluates on holdout test missions $\rightarrow$ saves `evaluation/benchmark_results.json`.
+5. Automatically exports the PyTorch checkpoint to `weights/uav_ids_model.onnx` and `weights/model_manifest.json`.
+6. Automatically regenerates `evaluation/figures/confusion_matrix.png` and `evaluation/figures/sensor_health_attribution.png` for Tab 2 of the dashboard.
+
+---
+
+#### Step 3: Verify the New Model
+Run the automated test suite to verify that the newly generated ONNX model passes numerical parity and classifies all attack profiles:
+
+```bash
+PYTHONPATH=. pytest tests/ -v
+```
+
+---
+
+### 🪟 Windows 1-Click Retraining
+
+On Windows, double-click:
+```cmd
+TRAIN_NEW_MODEL.bat
+```
+This batch script automatically checks Python, merges any recorded flight logs in `data/recorded_missions/`, runs the PyTorch training pipeline, and exports the updated ONNX model and evaluation figures.
 
 ---
 
